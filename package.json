@@ -15,11 +15,11 @@
     "postinstall": "node scripts/fetch-engines.mjs --if-missing"
   },
   "dependencies": {
-    "@ruffle-rs/ruffle": "*",
+    "@ruffle-rs/ruffle": "0.2.0",
     "better-sqlite3": "^12.2.0",
     "drizzle-orm": "^0.44.2",
     "fflate": "^0.8.3",
-    "js-dos": "^8.0.0",
+    "js-dos": "8.3.20",
     "next": "^15.5.0",
     "react": "^19.1.0",
     "react-dom": "^19.1.0",
