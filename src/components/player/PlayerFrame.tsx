@@ -1,0 +1,364 @@
+"use client";
+
+import { useCallback, useEffect, useRef, useState } from "react";
+import Link from "next/link";
+import { getSystem } from "@/config/systems.config";
+import { createEngine } from "@/engines";
+import type { EmulationEngine, EngineStatus, RomSource } from "@/engines/types";
+import {
+  deleteSaveState,
+  getBios,
+  getSaveState,
+  listSaveSlots,
+  putSaveState,
+} from "@/lib/client/idb";
+
+export interface PlayerFrameProps {
+  systemId: string;
+  title: string;
+  slug: string;
+  rom: RomSource;
+  /** rom SHA-256 — keys save states identically for local + library play */
+  romSha256: string;
+  /** library game id; fires the debounced play-count beacon when present */
+  gameId?: string;
+}
+
+type Toast = { text: string; tone: "info" | "error" } | null;
+
+/**
+ * THE player frame — RK8's signature element and the unifying identity across
+ * all three engines: hairline HUD bezel, yellow corner brackets, cyan status
+ * readout, save slots as a row of cartridges that fill yellow when occupied.
+ */
+export function PlayerFrame(props: PlayerFrameProps) {
+  const system = getSystem(props.systemId);
+  const mountRef = useRef<HTMLDivElement>(null);
+  const frameRef = useRef<HTMLDivElement>(null);
+  const engineRef = useRef<EmulationEngine | null>(null);
+
+  const [status, setStatus] = useState<EngineStatus>({
+    phase: "mounting",
+    message: "mounting rom...",
+  });
+  const [slots, setSlots] = useState<Map<number, { createdAt: number }>>(new Map());
+  const [activeSlot, setActiveSlot] = useState(0);
+  const [muted, setMuted] = useState(false);
+  const [toast, setToast] = useState<Toast>(null);
+  const [biosMissing, setBiosMissing] = useState<string[] | null>(null);
+
+  const say = useCallback((text: string, tone: "info" | "error" = "info") => {
+    setToast({ text, tone });
+    window.setTimeout(() => setToast(null), 2600);
+  }, []);
+
+  /* boot */
+  useEffect(() => {
+    if (!system || !mountRef.current) return;
+    let cancelled = false;
+    const engine = createEngine(system.engine);
+    engineRef.current = engine;
+
+    (async () => {
+      // gather user-supplied BIOS from the browser vault
+      let bios: Record<string, Blob> | undefined;
+      if (system.bios) {
+        bios = {};
+        const missing: string[] = [];
+        for (const f of system.bios.files) {
+          const entry = await getBios(f.fileName);
+          if (entry) bios[f.fileName] = entry.blob;
+          else if (!f.optional) missing.push(f.fileName);
+        }
+        const anyPresent = Object.keys(bios).length > 0;
+        const allOptional = system.bios.files.every((f) => f.optional);
+        if ((allOptional && !anyPresent) || (!allOptional && missing.length > 0)) {
+          if (!cancelled) setBiosMissing(system.bios.files.map((f) => f.fileName));
+          return;
+        }
+      }
+
+      try {
+        await engine.load({
+          system,
+          rom: props.rom,
+          mount: mountRef.current!,
+          gameKey: props.romSha256,
+          title: props.title,
+          bios,
+          onStatus: (s) => !cancelled && setStatus(s),
+        });
+        if (cancelled) return;
+        // debounced play-count beacon — one per boot, fire-and-forget
+        if (props.gameId) {
+          navigator.sendBeacon?.(`/api/play/${props.gameId}`) ||
+            fetch(`/api/play/${props.gameId}`, { method: "POST", keepalive: true });
+        }
+      } catch (e) {
+        if (!cancelled)
+          setStatus({
+            phase: "error",
+            message: e instanceof Error ? e.message : "boot failed",
+          });
+      }
+    })();
+
+    return () => {
+      cancelled = true;
+      engine.dispose();
+      engineRef.current = null;
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [props.systemId, props.romSha256]);
+
+  /* occupied slots */
+  useEffect(() => {
+    listSaveSlots(props.romSha256).then((m) =>
+      setSlots(new Map([...m].map(([k, v]) => [k, { createdAt: v.createdAt }]))),
+    );
+  }, [props.romSha256]);
+
+  /* controller toast */
+  useEffect(() => {
+    const on = () => say("controller linked");
+    const off = () => say("controller disconnected");
+    window.addEventListener("gamepadconnected", on);
+    window.addEventListener("gamepaddisconnected", off);
+    return () => {
+      window.removeEventListener("gamepadconnected", on);
+      window.removeEventListener("gamepaddisconnected", off);
+    };
+  }, [say]);
+
+  const supportsStates = system
+    ? createEngineCapability(system.engine)
+    : false;
+
+  const doSave = useCallback(async () => {
+    const engine = engineRef.current;
+    if (!engine || status.phase !== "running") return;
+    try {
+      const data = await engine.saveState();
+      await putSaveState(props.romSha256, activeSlot, {
+        data,
+        createdAt: Date.now(),
+        title: props.title,
+      });
+      setSlots((m) => new Map(m).set(activeSlot, { createdAt: Date.now() }));
+      say(`state saved // slot ${activeSlot}`);
+    } catch (e) {
+      say(e instanceof Error ? e.message : "save failed", "error");
+    }
+  }, [activeSlot, props.romSha256, props.title, say, status.phase]);
+
+  const doLoad = useCallback(async () => {
+    const engine = engineRef.current;
+    if (!engine || status.phase !== "running") return;
+    try {
+      const entry = await getSaveState(props.romSha256, activeSlot);
+      if (!entry) return say(`slot ${activeSlot} is empty`, "error");
+      await engine.loadState(entry.data);
+      say(`state loaded // slot ${activeSlot}`);
+    } catch (e) {
+      say(e instanceof Error ? e.message : "load failed", "error");
+    }
+  }, [activeSlot, props.romSha256, say, status.phase]);
+
+  const doDelete = useCallback(async () => {
+    await deleteSaveState(props.romSha256, activeSlot);
+    setSlots((m) => {
+      const n = new Map(m);
+      n.delete(activeSlot);
+      return n;
+    });
+    say(`slot ${activeSlot} ejected`);
+  }, [activeSlot, props.romSha256, say]);
+
+  const doScreenshot = useCallback(async () => {
+    const blob = await engineRef.current?.screenshot();
+    if (!blob) return say("screenshot unavailable for this engine", "error");
+    const a = document.createElement("a");
+    a.href = URL.createObjectURL(blob);
+    a.download = `${props.slug}-${Date.now()}.png`;
+    a.click();
+    URL.revokeObjectURL(a.href);
+    say("frame captured");
+  }, [props.slug, say]);
+
+  const doFullscreen = useCallback(() => {
+    frameRef.current?.requestFullscreen?.();
+  }, []);
+
+  const toggleMute = useCallback(() => {
+    setMuted((m) => {
+      engineRef.current?.setVolume(m ? 1 : 0);
+      return !m;
+    });
+  }, []);
+
+  if (!system) {
+    return (
+      <p className="border border-cp-red p-6 font-mono text-sm text-cp-red">
+        UNKNOWN SYSTEM — this cartridge has no machine to run on
+      </p>
+    );
+  }
+
+  return (
+    <div className="flex flex-col gap-3">
+      {/* the bezel */}
+      <div
+        ref={frameRef}
+        className="relative border bg-black"
+        style={{ aspectRatio: "4 / 3", maxHeight: "70vh" }}
+      >
+        <CornerBrackets />
+        {biosMissing ? (
+          <BiosGate files={biosMissing} note={system.bios?.note} />
+        ) : status.phase === "error" ? (
+          <div className="flex h-full flex-col items-center justify-center gap-3 p-6">
+            <p className="hud-label text-cp-red">BOOT FAILURE</p>
+            <p className="max-w-md text-center font-mono text-sm text-dim">
+              {status.message}
+            </p>
+          </div>
+        ) : (
+          <>
+            {status.phase === "mounting" && (
+              <div className="pointer-events-none absolute inset-0 z-10 flex items-center justify-center">
+                <p className="font-mono text-sm text-cp-cyan">
+                  {status.message ?? "mounting rom..."}
+                </p>
+              </div>
+            )}
+            <div
+              ref={mountRef}
+              className={`h-full w-full ${status.phase === "running" ? "rk8-crt-on" : ""}`}
+            />
+          </>
+        )}
+        {toast && (
+          <p
+            role="status"
+            className={`absolute bottom-3 left-3 z-20 border bg-bg px-3 py-1.5 font-mono text-xs ${
+              toast.tone === "error"
+                ? "border-cp-red text-cp-red"
+                : "border-cp-yellow text-cp-yellow"
+            }`}
+          >
+            {toast.text}
+          </p>
+        )}
+      </div>
+
+      {/* live status row */}
+      <p className="hud-data flex flex-wrap gap-x-3 gap-y-1">
+        <span>SYS // {system.shortName}</span>
+        <span className="text-dim">·</span>
+        <span>CORE // {(system.core ?? system.engine).toUpperCase()}</span>
+        <span className="text-dim">·</span>
+        <span>
+          STATE //{" "}
+          {supportsStates ? `SLOT ${activeSlot}` : "UNSUPPORTED"}
+        </span>
+        <span className="text-dim">·</span>
+        <span
+          className={
+            status.phase === "error" ? "text-cp-red" : undefined
+          }
+        >
+          STATUS // {status.phase.toUpperCase()}
+        </span>
+      </p>
+
+      {/* cartridge slots + transport controls */}
+      <div className="flex flex-wrap items-center gap-4 border p-3">
+        {supportsStates ? (
+          <>
+            <div className="flex items-center gap-1.5" role="group" aria-label="save slots">
+              {Array.from({ length: 10 }, (_, i) => (
+                <button
+                  key={i}
+                  type="button"
+                  aria-label={`slot ${i}${slots.has(i) ? " (occupied)" : " (empty)"}`}
+                  aria-pressed={activeSlot === i}
+                  onClick={() => setActiveSlot(i)}
+                  className={`h-6 w-4 border transition-colors ${
+                    slots.has(i)
+                      ? "border-cp-yellow bg-cp-yellow"
+                      : "border-line bg-surface"
+                  } ${activeSlot === i ? "outline outline-1 outline-offset-2 outline-cp-yellow" : ""}`}
+                  style={{
+                    clipPath:
+                      "polygon(0 18%, 22% 18%, 22% 0, 78% 0, 78% 18%, 100% 18%, 100% 100%, 0 100%)",
+                  }}
+                />
+              ))}
+            </div>
+            <div className="flex gap-2">
+              <button type="button" className="rk8-btn-ghost" onClick={doSave}>
+                save
+              </button>
+              <button type="button" className="rk8-btn-ghost" onClick={doLoad}>
+                load
+              </button>
+              {slots.has(activeSlot) && (
+                <button type="button" className="rk8-btn-ghost rk8-btn-danger" onClick={doDelete}>
+                  del
+                </button>
+              )}
+            </div>
+          </>
+        ) : (
+          <p className="hud-label">
+            SAVE STATES // NOT SUPPORTED BY THIS ENGINE
+          </p>
+        )}
+
+        <div className="ml-auto flex gap-2">
+          <button type="button" className="rk8-btn-ghost" onClick={doScreenshot}>
+            capture
+          </button>
+          <button type="button" className="rk8-btn-ghost" onClick={toggleMute} aria-pressed={muted}>
+            {muted ? "unmute" : "mute"}
+          </button>
+          <button type="button" className="rk8-btn-ghost" onClick={doFullscreen}>
+            fullscreen
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+/** engines whose adapter implements machine states (kept in one place) */
+function createEngineCapability(engine: string): boolean {
+  return engine === "ejs";
+}
+
+function CornerBrackets() {
+  const base = "pointer-events-none absolute z-10 h-4 w-4 border-cp-yellow";
+  return (
+    <>
+      <span aria-hidden className={`${base} left-0 top-0 border-l border-t`} />
+      <span aria-hidden className={`${base} right-0 top-0 border-r border-t`} />
+      <span aria-hidden className={`${base} bottom-0 left-0 border-b border-l`} />
+      <span aria-hidden className={`${base} bottom-0 right-0 border-b border-r`} />
+    </>
+  );
+}
+
+function BiosGate({ files, note }: { files: string[]; note?: string }) {
+  return (
+    <div className="flex h-full flex-col items-center justify-center gap-3 p-6">
+      <p className="hud-label text-cp-cyan">BIOS REQUIRED</p>
+      <p className="max-w-md text-center font-mono text-sm text-dim">
+        {note ?? "this system needs a bios file you supply yourself."} needed:{" "}
+        {files.join(" · ")}
+      </p>
+      <Link href="/bios" className="rk8-btn-primary">
+        open bios vault
+      </Link>
+    </div>
+  );
+}

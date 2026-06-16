@@ -1,0 +1,373 @@
+@import "tailwindcss";
+
+/* ============================================================================
+   RK8 DESIGN SYSTEM — "HERMES // NIGHT CITY"
+   Skeleton: terminal-grade monospace minimalism (hairlines, micro-labels, restraint)
+   Skin:     CP2077 — signal yellow accents, cyan data, notched corners, glitch
+             in exactly three places (hero load / card hover / player boot)
+   Dark-only. No drop shadows. Depth = hairlines + the rare glow.
+   ========================================================================== */
+
+@theme {
+  /* canvas */
+  --color-bg: #0a0a0c;
+  --color-surface: #101014;
+  --color-surface-2: #16161c;
+  --color-line: #2a2a33;
+
+  /* ink */
+  --color-text: #e8e6e1;
+  --color-dim: #8a8a95;
+
+  /* accents — yellow is THE accent: edges, text, thin bars. never fills. */
+  --color-cp-yellow: #fcee0a;
+  --color-cp-cyan: #00f0ff;
+  --color-cp-red: #ff003c;
+
+  /* manufacturer chips — desaturated, tiny, never loud */
+  --color-mfr-nintendo: #9e4a44; /* dusty red */
+  --color-mfr-sega: #4a6b8a;     /* steel blue */
+  --color-mfr-nec: #6e5f7e;      /* muted violet */
+  --color-mfr-atari: #a87c32;    /* amber */
+  --color-mfr-playstation: #5a6472; /* sony slate */
+  --color-mfr-snk: #c9c4b4;      /* ivory */
+  --color-mfr-arcade: #7e4a5e;   /* cabinet maroon */
+  --color-mfr-computers: #4f7a6a;/* phosphor green, desaturated */
+  --color-mfr-dos: #8a7f5c;      /* beige-box */
+  --color-mfr-flash: #7a5a3a;    /* amber-orange, muted */
+
+  /* type — JetBrains Mono (display/UI), IBM Plex Sans (body + ALL legal text) */
+  --font-mono: var(--font-jetbrains), "JetBrains Mono", ui-monospace, "Cascadia Mono", monospace;
+  --font-sans: var(--font-plex), "IBM Plex Sans", system-ui, sans-serif;
+
+  --tracking-hud: 0.18em;
+}
+
+/* ---------------------------------------------------------------------------
+   base
+--------------------------------------------------------------------------- */
+@layer base {
+  :root {
+    --notch: 12px; /* the CP2077 clipped corner, 10–14px, 45° */
+    color-scheme: dark;
+  }
+
+  * {
+    border-color: var(--color-line);
+  }
+
+  html {
+    background: var(--color-bg);
+  }
+
+  body {
+    background: var(--color-bg);
+    color: var(--color-text);
+    font-family: var(--font-mono);
+    font-size: 14px;
+    line-height: 1.6;
+    -webkit-font-smoothing: antialiased;
+  }
+
+  ::selection {
+    background: var(--color-cp-yellow);
+    color: var(--color-bg);
+  }
+
+  /* visible yellow focus everywhere — quality floor, not a feature */
+  :focus-visible {
+    outline: 1px solid var(--color-cp-yellow);
+    outline-offset: 2px;
+  }
+
+  a {
+    text-decoration: none;
+    color: inherit;
+  }
+
+  ::-webkit-scrollbar { width: 10px; height: 10px; }
+  ::-webkit-scrollbar-track { background: var(--color-bg); }
+  ::-webkit-scrollbar-thumb { background: var(--color-line); border: 2px solid var(--color-bg); }
+  ::-webkit-scrollbar-thumb:hover { background: var(--color-dim); }
+}
+
+/* ---------------------------------------------------------------------------
+   utilities — geometry, hud type, hairlines
+--------------------------------------------------------------------------- */
+@utility notch-tr {
+  /* single clipped corner, top-right */
+  clip-path: polygon(
+    0 0,
+    calc(100% - var(--notch)) 0,
+    100% var(--notch),
+    100% 100%,
+    0 100%
+  );
+}
+
+@utility notch-bl {
+  /* single clipped corner, bottom-left */
+  clip-path: polygon(
+    0 0,
+    100% 0,
+    100% 100%,
+    var(--notch) 100%,
+    0 calc(100% - var(--notch))
+  );
+}
+
+@utility hud-label {
+  /* uppercase wide-tracked micro-label: SYS // SNES · STATUS // ONLINE */
+  font-family: var(--font-mono);
+  font-size: 10px;
+  letter-spacing: var(--tracking-hud);
+  text-transform: uppercase;
+  color: var(--color-dim);
+}
+
+@utility hud-data {
+  /* cyan data readout: 326 GAMES INDEXED */
+  font-family: var(--font-mono);
+  font-size: 11px;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--color-cp-cyan);
+}
+
+@utility cmd-link {
+  /* lowercase command nav: > library */
+  font-family: var(--font-mono);
+  font-size: 13px;
+  letter-spacing: 0.04em;
+  text-transform: lowercase;
+}
+
+@utility prose-legal {
+  /* legal pages drop the terminal voice — genuinely readable */
+  font-family: var(--font-sans);
+  font-size: 15px;
+  line-height: 1.75;
+  color: var(--color-text);
+}
+
+/* ---------------------------------------------------------------------------
+   glitch language — used in EXACTLY three places. nothing loops.
+--------------------------------------------------------------------------- */
+
+/* 1 · hero wordmark: one-time 600ms RGB split on load, then a slow 4s cursor */
+@keyframes rk8-hero-glitch {
+  0%   { text-shadow: 0 0 transparent; transform: translateX(0); }
+  10%  { text-shadow: -3px 0 var(--color-cp-cyan), 3px 0 var(--color-cp-red); transform: translateX(2px); }
+  20%  { text-shadow: 3px 0 var(--color-cp-cyan), -3px 0 var(--color-cp-red); transform: translateX(-2px); }
+  35%  { text-shadow: -2px 0 var(--color-cp-cyan), 2px 0 var(--color-cp-red); transform: translateX(1px); }
+  50%  { text-shadow: 2px 0 var(--color-cp-cyan), -2px 0 var(--color-cp-red); transform: translateX(-1px); clip-path: inset(20% 0 30% 0); }
+  55%  { clip-path: none; }
+  70%  { text-shadow: -1px 0 var(--color-cp-cyan), 1px 0 var(--color-cp-red); transform: translateX(0); }
+  100% { text-shadow: 0 0 transparent; transform: translateX(0); }
+}
+
+.rk8-hero-glitch {
+  animation: rk8-hero-glitch 600ms steps(8, end) 1;
+}
+
+@keyframes rk8-cursor {
+  0%, 45%  { opacity: 1; }
+  50%, 95% { opacity: 0; }
+  100%     { opacity: 1; }
+}
+
+.rk8-cursor {
+  display: inline-block;
+  width: 0.55em;
+  height: 1em;
+  margin-left: 0.12em;
+  background: var(--color-cp-yellow);
+  vertical-align: text-bottom;
+  animation: rk8-cursor 4s step-end infinite; /* the single permitted loop: a cursor is a cursor */
+}
+
+/* 2 · card hover: 120ms micro-glitch as the card powers on */
+@keyframes rk8-card-glitch {
+  0%   { transform: translate(0); }
+  33%  { transform: translate(2px, 0); clip-path: inset(10% 0 80% 0); }
+  66%  { transform: translate(-2px, 0); clip-path: inset(70% 0 10% 0); }
+  100% { transform: translate(0); clip-path: none; }
+}
+
+.rk8-card {
+  position: relative;
+  background: var(--color-surface);
+  border: 1px solid var(--color-line);
+  transition: border-color 120ms linear;
+}
+
+.rk8-card::after {
+  /* 3%-opacity scanlines, fade in on hover */
+  content: "";
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  background: repeating-linear-gradient(
+    to bottom,
+    transparent 0,
+    transparent 2px,
+    rgb(0 240 255 / 0.03) 2px,
+    rgb(0 240 255 / 0.03) 3px
+  );
+  opacity: 0;
+  transition: opacity 160ms linear;
+}
+
+.rk8-card:hover,
+.rk8-card:focus-within {
+  border-color: var(--color-cp-yellow);
+}
+
+.rk8-card:hover::after,
+.rk8-card:focus-within::after {
+  opacity: 1;
+}
+
+.rk8-card:hover .rk8-card-img {
+  animation: rk8-card-glitch 120ms steps(3, end) 1;
+}
+
+/* 3 · player boot: 200ms scanline wipe, then one CRT power-on flicker */
+@keyframes rk8-scanline-wipe {
+  from { transform: scaleY(0); }
+  to   { transform: scaleY(1); }
+}
+
+.rk8-scanline-wipe {
+  transform-origin: top;
+  animation: rk8-scanline-wipe 200ms linear 1;
+}
+
+@keyframes rk8-crt-on {
+  0%   { opacity: 0; transform: scaleY(0.004) scaleX(0.6); }
+  35%  { opacity: 1; transform: scaleY(0.004) scaleX(1); }
+  60%  { transform: scaleY(0.6) scaleX(1); }
+  75%  { transform: scaleY(1.02) scaleX(1); }
+  100% { opacity: 1; transform: scaleY(1) scaleX(1); }
+}
+
+.rk8-crt-on {
+  animation: rk8-crt-on 380ms ease-out 1;
+}
+
+/* reduced motion: every glitch collapses to instant state changes */
+@media (prefers-reduced-motion: reduce) {
+  .rk8-hero-glitch,
+  .rk8-cursor,
+  .rk8-card:hover .rk8-card-img,
+  .rk8-scanline-wipe,
+  .rk8-crt-on {
+    animation: none !important;
+  }
+}
+
+/* ---------------------------------------------------------------------------
+   primitives
+--------------------------------------------------------------------------- */
+
+/* the dominant action: ▶ PLAY. yellow as edge + text, fills only on hover. */
+.rk8-btn-primary {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.6em;
+  font-family: var(--font-mono);
+  font-size: 13px;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--color-cp-yellow);
+  background: transparent;
+  border: 1px solid var(--color-cp-yellow);
+  padding: 0.8em 1.6em;
+  cursor: pointer;
+  transition: background-color 120ms linear, color 120ms linear;
+  clip-path: polygon(0 0, calc(100% - var(--notch)) 0, 100% var(--notch), 100% 100%, 0 100%);
+}
+
+.rk8-btn-primary:hover,
+.rk8-btn-primary:focus-visible {
+  background: var(--color-cp-yellow);
+  color: var(--color-bg);
+}
+
+.rk8-btn-ghost {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.6em;
+  font-family: var(--font-mono);
+  font-size: 12px;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--color-dim);
+  background: transparent;
+  border: 1px solid var(--color-line);
+  padding: 0.7em 1.2em;
+  cursor: pointer;
+  transition: border-color 120ms linear, color 120ms linear;
+}
+
+.rk8-btn-ghost:hover,
+.rk8-btn-ghost:focus-visible {
+  border-color: var(--color-cp-yellow);
+  color: var(--color-text);
+}
+
+.rk8-btn-danger {
+  color: var(--color-cp-red);
+  border-color: var(--color-cp-red);
+}
+
+/* hairline section rule with optional /// label slot */
+.rk8-rule {
+  border-top: 1px solid var(--color-line);
+}
+
+/* form input — terminal field: square, hairline, yellow focus edge */
+.rk8-input {
+  font-family: var(--font-mono);
+  font-size: 13px;
+  color: var(--color-text);
+  background: var(--color-surface-2);
+  border: 1px solid var(--color-line);
+  padding: 0.6em 0.8em;
+  outline: none;
+  transition: border-color 120ms linear;
+}
+.rk8-input:focus {
+  border-color: var(--color-cp-yellow);
+}
+.rk8-input::placeholder {
+  color: var(--color-dim);
+}
+
+/* ---------------------------------------------------------------------------
+   ambient — a faint CRT screen filter over the whole canvas. Static (no loop),
+   reduced-motion-safe, pointer-events-none, sits above content but below the
+   header (z-50) and the command palette (z-[60]). Depth without noise.
+--------------------------------------------------------------------------- */
+.rk8-ambient {
+  position: fixed;
+  inset: 0;
+  z-index: 30;
+  pointer-events: none;
+  background:
+    radial-gradient(ellipse at 50% 40%, transparent 58%, rgb(0 0 0 / 0.34) 100%),
+    repeating-linear-gradient(
+      to bottom,
+      transparent 0,
+      transparent 2px,
+      rgb(232 230 225 / 0.014) 2px,
+      rgb(232 230 225 / 0.014) 3px
+    );
+}
+
+/* command palette — the "agent terminal" surface */
+.rk8-cmdk-item[data-active="true"] {
+  background: var(--color-surface-2);
+  border-color: var(--color-cp-yellow);
+  color: var(--color-text);
+}

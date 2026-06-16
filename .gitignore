@@ -1,0 +1,27 @@
+# deps / build
+node_modules/
+.next/
+out/
+*.tsbuildinfo
+next-env.d.ts
+
+# engines are provisioned by scripts/fetch-engines.mjs (version-pinned), never committed
+public/engines/
+.emulatorjs.tar.gz
+.emulatorjs-extract/
+
+# runtime data — DB, uploaded ROMs/covers/save-states live outside git
+data/
+*.db
+*.db-journal
+
+# seed downloads cache
+.seed-cache/
+
+# env
+.env
+.env.local
+
+# os noise
+.DS_Store
+Thumbs.db

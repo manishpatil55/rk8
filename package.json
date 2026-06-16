@@ -1,0 +1,39 @@
+{
+  "name": "rk8",
+  "version": "0.1.0",
+  "private": true,
+  "description": "RK8:// — browser-based retro gaming platform. Every cartridge ever mounted.",
+  "scripts": {
+    "dev": "next dev",
+    "build": "next build",
+    "start": "next start",
+    "lint": "next lint",
+    "db:push": "drizzle-kit push",
+    "db:studio": "drizzle-kit studio",
+    "setup:engines": "node scripts/fetch-engines.mjs",
+    "seed": "tsx scripts/seed.ts",
+    "postinstall": "node scripts/fetch-engines.mjs --if-missing"
+  },
+  "dependencies": {
+    "@ruffle-rs/ruffle": "*",
+    "better-sqlite3": "^12.2.0",
+    "drizzle-orm": "^0.44.2",
+    "fflate": "^0.8.3",
+    "js-dos": "^8.0.0",
+    "next": "^15.5.0",
+    "react": "^19.1.0",
+    "react-dom": "^19.1.0",
+    "zod": "^3.25.0"
+  },
+  "devDependencies": {
+    "@tailwindcss/postcss": "^4.1.0",
+    "@types/better-sqlite3": "^7.6.13",
+    "@types/node": "^24.0.0",
+    "@types/react": "^19.1.0",
+    "@types/react-dom": "^19.1.0",
+    "drizzle-kit": "^0.31.0",
+    "tailwindcss": "^4.1.0",
+    "tsx": "^4.20.0",
+    "typescript": "^5.9.0"
+  }
+}
