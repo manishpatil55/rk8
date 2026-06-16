@@ -2,6 +2,8 @@ import { NextResponse } from "next/server";
 import { getCurrentUser } from "@/lib/auth/guards";
 import { clientIp, rateLimit } from "@/lib/ratelimit";
 import {
+  MAX_SAVE_BYTES,
+  MAX_SHOT_BYTES,
   SaveError,
   deleteSave,
   getSaveRow,
@@ -9,6 +11,11 @@ import {
   validSlot,
 } from "@/lib/saves";
 import { storage } from "@/lib/storage";
+
+// hard ceiling on the whole multipart body so we 413 from the Content-Length
+// header BEFORE buffering anything into memory (App Router has no default body
+// cap). Generous slack over state + screenshot covers multipart framing.
+const MAX_BODY_BYTES = MAX_SAVE_BYTES + MAX_SHOT_BYTES + 64 * 1024;
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -37,6 +44,11 @@ export async function PUT(
   if (!validSlot(slot)) return NextResponse.json({ error: "bad_slot" }, { status: 400 });
   if (!rateLimit(`save:${user.id}:${clientIp(req)}`, 60, 60_000).ok)
     return NextResponse.json({ error: "rate" }, { status: 429 });
+
+  // reject oversized bodies before buffering them into memory
+  const declared = Number(req.headers.get("content-length") ?? 0);
+  if (declared > MAX_BODY_BYTES)
+    return NextResponse.json({ error: "too_large" }, { status: 413 });
 
   let form: FormData;
   try {
