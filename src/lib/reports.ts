@@ -134,7 +134,7 @@ export async function createReport(
   });
 
   if (isDmca && token && input.reporterEmail) {
-    const link = `${appUrl()}/api/report/verify?id=${id}&token=${token}`;
+    const link = `${appUrl()}/report/verify?id=${id}&token=${token}`;
     await mailer.send({
       to: input.reporterEmail,
       subject: "Confirm your RK8 copyright takedown notice",
