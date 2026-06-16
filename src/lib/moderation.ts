@@ -28,7 +28,10 @@ export class ModerationError extends Error {
   }
 }
 
-export const GameAction = z.enum(["approve", "reject", "takedown"]);
+// "restore" re-publishes a taken-down game (only meaningful when its bytes were
+// retained — the reversible DMCA auto-suspension); audited distinctly from a
+// first-time approval.
+export const GameAction = z.enum(["approve", "reject", "takedown", "restore"]);
 export type GameActionT = z.infer<typeof GameAction>;
 
 export const ModerateSchema = z.object({
@@ -47,10 +50,11 @@ const RESULT_STATUS: Record<GameActionT, "approved" | "rejected" | "takedown"> =
   approve: "approved",
   reject: "rejected",
   takedown: "takedown",
+  restore: "approved",
 };
 
 async function writeAudit(
-  actorId: string,
+  actorId: string | null,
   action: string,
   target: string,
   meta: Record<string, unknown>,
@@ -77,10 +81,16 @@ async function dropBytes(key: string | null) {
 }
 
 export async function moderateGame(opts: {
-  actorId: string;
+  // null = a system/automated actor (e.g. the 72h DMCA auto-takedown sweep);
+  // audit_log.actor_id is nullable so unattributed actions are still recorded.
+  actorId: string | null;
   gameId: string;
   action: GameActionT;
   reason?: string;
+  // when true, a takedown keeps the stored ROM/cover bytes so the action is
+  // reversible (re-approval restores it). Used by the reversible 72h DMCA
+  // auto-takedown; a manual moderator takedown defaults to deleting bytes.
+  retainBytes?: boolean;
 }): Promise<{ id: string; status: "approved" | "rejected" | "takedown" }> {
   const [game] = await db
     .select()
@@ -89,17 +99,27 @@ export async function moderateGame(opts: {
     .limit(1);
   if (!game) throw new ModerationError("not_found");
 
+  // idempotency guard: if the game is already in the action's terminal status,
+  // skip the write + audit. Without this, concurrent sweeps (two ROM/admin
+  // requests racing) would each re-takedown and write duplicate audit rows.
+  if (game.status === RESULT_STATUS[opts.action])
+    return { id: game.id, status: RESULT_STATUS[opts.action] };
+
   const now = new Date();
   const reason = opts.reason?.trim();
 
-  if (opts.action === "approve") {
+  if (opts.action === "approve" || opts.action === "restore") {
     await db
       .update(games)
       .set({
         status: "approved",
-        // first approval stamps publishedAt; re-approval keeps the original
+        // first approval stamps publishedAt; re-approval/restore keeps it.
         publishedAt: game.publishedAt ?? now,
         rejectReason: null,
+        // restore clears the tombstone fields so the play page un-ejects
+        ...(opts.action === "restore"
+          ? { takedownAt: null, takedownReason: null }
+          : {}),
       })
       .where(eq(games.id, game.id));
   } else if (opts.action === "reject") {
@@ -111,14 +131,17 @@ export async function moderateGame(opts: {
     await dropBytes(game.romPath);
     await dropBytes(game.coverPath);
   } else {
-    // takedown — permanent tombstone (the /play page renders "EJECTED")
+    // takedown — tombstone (the /play page renders "EJECTED"). Bytes are deleted
+    // unless retainBytes (reversible auto-suspension) is set.
     if (!reason) throw new ModerationError("reason_required");
     await db
       .update(games)
       .set({ status: "takedown", takedownAt: now, takedownReason: reason })
       .where(eq(games.id, game.id));
-    await dropBytes(game.romPath);
-    await dropBytes(game.coverPath);
+    if (!opts.retainBytes) {
+      await dropBytes(game.romPath);
+      await dropBytes(game.coverPath);
+    }
   }
 
   await writeAudit(opts.actorId, opts.action, `game:${game.id}`, {
@@ -126,6 +149,7 @@ export async function moderateGame(opts: {
     slug: game.slug,
     systemId: game.systemId,
     ...(reason ? { reason } : {}),
+    ...(opts.action === "takedown" && opts.retainBytes ? { retained: true } : {}),
   });
 
   return { id: game.id, status: RESULT_STATUS[opts.action] };
@@ -201,6 +225,24 @@ export async function listPendingGames(limit = 100): Promise<PendingRow[]> {
     .orderBy(games.createdAt)
     .limit(limit);
   return rows;
+}
+
+/**
+ * Taken-down games whose bytes were RETAINED (the reversible 72h DMCA auto-
+ * suspension) — these can be restored by re-approval if the notice was wrong.
+ * A manual moderator takedown deletes bytes, so `storage.exists` filters those
+ * out and only genuinely-restorable rows surface.
+ */
+export async function listRestorableGames(
+  limit = 50,
+): Promise<(typeof games.$inferSelect)[]> {
+  const rows = await db
+    .select()
+    .from(games)
+    .where(eq(games.status, "takedown"))
+    .orderBy(desc(games.takedownAt))
+    .limit(limit);
+  return rows.filter((g) => storage.exists(g.romPath));
 }
 
 export interface AuditRow {

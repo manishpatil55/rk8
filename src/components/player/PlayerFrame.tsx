@@ -12,6 +12,12 @@ import {
   listSaveSlots,
   putSaveState,
 } from "@/lib/client/idb";
+import {
+  deleteServerSave,
+  fetchServerSlots,
+  getServerSave,
+  putServerSave,
+} from "@/lib/client/server-saves";
 
 export interface PlayerFrameProps {
   systemId: string;
@@ -22,6 +28,8 @@ export interface PlayerFrameProps {
   romSha256: string;
   /** library game id; fires the debounced play-count beacon when present */
   gameId?: string;
+  /** signed-in on a library game → also sync save states to the server */
+  canSync?: boolean;
 }
 
 type Toast = { text: string; tone: "info" | "error" } | null;
@@ -46,6 +54,9 @@ export function PlayerFrame(props: PlayerFrameProps) {
   const [muted, setMuted] = useState(false);
   const [toast, setToast] = useState<Toast>(null);
   const [biosMissing, setBiosMissing] = useState<string[] | null>(null);
+
+  // sync only makes sense for a signed-in user playing a real library game
+  const canSync = !!props.canSync && !!props.gameId;
 
   const say = useCallback((text: string, tone: "info" | "error" = "info") => {
     setToast({ text, tone });
@@ -111,12 +122,32 @@ export function PlayerFrame(props: PlayerFrameProps) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [props.systemId, props.romSha256]);
 
-  /* occupied slots */
+  /* occupied slots — union of the local IndexedDB vault and (if signed in) the
+     server, so cross-device saves show up on a fresh browser */
   useEffect(() => {
-    listSaveSlots(props.romSha256).then((m) =>
-      setSlots(new Map([...m].map(([k, v]) => [k, { createdAt: v.createdAt }]))),
-    );
-  }, [props.romSha256]);
+    let cancelled = false;
+    (async () => {
+      const merged = new Map<number, { createdAt: number }>();
+      const local = await listSaveSlots(props.romSha256);
+      for (const [k, v] of local) merged.set(k, { createdAt: v.createdAt });
+      if (canSync && props.gameId) {
+        try {
+          for (const s of await fetchServerSlots(props.gameId)) {
+            const cur = merged.get(s.slot);
+            // keep the freshest timestamp across local/server
+            if (!cur || s.createdAt > cur.createdAt)
+              merged.set(s.slot, { createdAt: s.createdAt });
+          }
+        } catch {
+          /* offline / server hiccup — local slots still show */
+        }
+      }
+      if (!cancelled) setSlots(merged);
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [props.romSha256, props.gameId, canSync]);
 
   /* controller toast */
   useEffect(() => {
@@ -139,40 +170,70 @@ export function PlayerFrame(props: PlayerFrameProps) {
     if (!engine || status.phase !== "running") return;
     try {
       const data = await engine.saveState();
+      const now = Date.now();
+      // local vault always (offline + anonymous)
       await putSaveState(props.romSha256, activeSlot, {
         data,
-        createdAt: Date.now(),
+        createdAt: now,
         title: props.title,
       });
-      setSlots((m) => new Map(m).set(activeSlot, { createdAt: Date.now() }));
+      setSlots((m) => new Map(m).set(activeSlot, { createdAt: now }));
+      // server sync (best-effort) with a thumbnail for the slot
+      if (canSync && props.gameId) {
+        try {
+          const shot = await engine.screenshot().catch(() => null);
+          await putServerSave(props.gameId, activeSlot, data, shot);
+          say(`state saved // slot ${activeSlot} // synced`);
+          return;
+        } catch {
+          say(`state saved // slot ${activeSlot} // local only (sync failed)`);
+          return;
+        }
+      }
       say(`state saved // slot ${activeSlot}`);
     } catch (e) {
       say(e instanceof Error ? e.message : "save failed", "error");
     }
-  }, [activeSlot, props.romSha256, props.title, say, status.phase]);
+  }, [activeSlot, canSync, props.gameId, props.romSha256, props.title, say, status.phase]);
 
   const doLoad = useCallback(async () => {
     const engine = engineRef.current;
     if (!engine || status.phase !== "running") return;
     try {
-      const entry = await getSaveState(props.romSha256, activeSlot);
-      if (!entry) return say(`slot ${activeSlot} is empty`, "error");
-      await engine.loadState(entry.data);
-      say(`state loaded // slot ${activeSlot}`);
+      // prefer the local copy; fall back to the server (fresh device / cleared cache)
+      const local = await getSaveState(props.romSha256, activeSlot);
+      let data = local?.data ?? null;
+      let fromServer = false;
+      if (!data && canSync && props.gameId) {
+        data = await getServerSave(props.gameId, activeSlot);
+        fromServer = !!data;
+      }
+      if (!data) return say(`slot ${activeSlot} is empty`, "error");
+      await engine.loadState(data);
+      // warm the local vault so a server-sourced state is offline-available next time
+      if (fromServer)
+        await putSaveState(props.romSha256, activeSlot, {
+          data,
+          createdAt: Date.now(),
+          title: props.title,
+        });
+      say(`state loaded // slot ${activeSlot}${fromServer ? " // from cloud" : ""}`);
     } catch (e) {
       say(e instanceof Error ? e.message : "load failed", "error");
     }
-  }, [activeSlot, props.romSha256, say, status.phase]);
+  }, [activeSlot, canSync, props.gameId, props.romSha256, props.title, say, status.phase]);
 
   const doDelete = useCallback(async () => {
     await deleteSaveState(props.romSha256, activeSlot);
+    if (canSync && props.gameId)
+      await deleteServerSave(props.gameId, activeSlot).catch(() => {});
     setSlots((m) => {
       const n = new Map(m);
       n.delete(activeSlot);
       return n;
     });
     say(`slot ${activeSlot} ejected`);
-  }, [activeSlot, props.romSha256, say]);
+  }, [activeSlot, canSync, props.gameId, props.romSha256, say]);
 
   const doScreenshot = useCallback(async () => {
     const blob = await engineRef.current?.screenshot();
@@ -283,7 +344,7 @@ export function PlayerFrame(props: PlayerFrameProps) {
                   aria-label={`slot ${i}${slots.has(i) ? " (occupied)" : " (empty)"}`}
                   aria-pressed={activeSlot === i}
                   onClick={() => setActiveSlot(i)}
-                  className={`h-6 w-4 border transition-colors ${
+                  className={`h-10 w-6 border transition-colors ${
                     slots.has(i)
                       ? "border-cp-yellow bg-cp-yellow"
                       : "border-line bg-surface"

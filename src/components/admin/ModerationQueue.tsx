@@ -232,8 +232,9 @@ export function ModerationQueue({
 
       {toast && (
         <p
-          role="status"
-          className={`fixed bottom-4 left-1/2 z-50 -translate-x-1/2 border bg-bg px-4 py-2 font-mono text-xs ${
+          role={toast.tone === "error" ? "alert" : "status"}
+          aria-live={toast.tone === "error" ? "assertive" : "polite"}
+          className={`fixed bottom-4 left-1/2 z-50 max-w-[calc(100vw-2rem)] -translate-x-1/2 border bg-bg px-4 py-2 text-center font-mono text-xs ${
             toast.tone === "error"
               ? "border-cp-red text-cp-red"
               : "border-cp-yellow text-cp-yellow"

@@ -19,12 +19,21 @@ const plex = IBM_Plex_Sans({
 });
 
 export const metadata: Metadata = {
+  metadataBase: new URL(process.env.APP_URL ?? "http://localhost:3000"),
   title: {
     default: "RK8:// — every cartridge ever mounted",
     template: "%s · RK8://",
   },
   description:
     "Browser-based retro gaming. Every classic system, playable instantly — no installs, no ads. From one gamer to another.",
+  openGraph: {
+    title: "RK8:// — every cartridge ever mounted",
+    description:
+      "Browser-based retro gaming. Every classic system, playable instantly — no installs, no ads.",
+    siteName: "RK8://",
+    type: "website",
+  },
+  twitter: { card: "summary_large_image" },
 };
 
 export default function RootLayout({

@@ -60,6 +60,12 @@ export async function getGameBySlug(
   return row;
 }
 
+/** any-status lookup by id — used by the public report form to label a ticket */
+export async function getGameById(id: string): Promise<Game | undefined> {
+  const [row] = await db.select().from(games).where(eq(games.id, id)).limit(1);
+  return row;
+}
+
 export async function getRelatedGames(game: Game, limit = 4): Promise<Game[]> {
   return db
     .select()

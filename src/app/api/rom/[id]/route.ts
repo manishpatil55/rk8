@@ -3,6 +3,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { db, schema } from "@/db";
 import { storage } from "@/lib/storage";
 import { romFilename, streamStored } from "@/lib/rom-response";
+import { isDmcaSuspended } from "@/lib/reports";
 
 /**
  * The ONLY public way ROM bytes leave the server. No directory listing, no
@@ -23,6 +24,13 @@ export async function GET(
 
   if (!game || game.status !== "approved" || !storage.exists(game.romPath)) {
     return NextResponse.json({ error: "not found" }, { status: 404 });
+  }
+
+  // Read-only DMCA gate: refuse to serve a game past a verified takedown
+  // deadline even before the sweep flips its row. No write here — keeps this
+  // hot, Range-heavy path cheap; the row flip happens on the play page / admin.
+  if (await isDmcaSuspended(id)) {
+    return NextResponse.json({ error: "unavailable" }, { status: 451 });
   }
 
   // approved rom bytes are immutable (sha-identified) — cache hard, allow offload

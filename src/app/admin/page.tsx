@@ -2,10 +2,17 @@ import type { Metadata } from "next";
 import { requireRole } from "@/lib/auth/guards";
 import {
   listPendingGames,
+  listRestorableGames,
   moderationStats,
   recentAuditLog,
 } from "@/lib/moderation";
+import { listOpenReports, sweepExpiredDmca } from "@/lib/reports";
 import { ModerationQueue, type QueueItem } from "@/components/admin/ModerationQueue";
+import { ReportsQueue, type ReportItem } from "@/components/admin/ReportsQueue";
+import {
+  RestorableGames,
+  type RestorableItem,
+} from "@/components/admin/RestorableGames";
 
 export const metadata: Metadata = { title: "moderation // rk8" };
 // always live — never cache the queue or audit tail
@@ -13,11 +20,43 @@ export const dynamic = "force-dynamic";
 
 export default async function AdminPage() {
   const user = await requireRole(["mod", "admin"], "/admin");
-  const [pending, audit, stats] = await Promise.all([
+  // honor the 72h DMCA clock on every admin view (the byte path does too)
+  await sweepExpiredDmca();
+  const [pending, reports, restorable, audit, stats] = await Promise.all([
     listPendingGames(),
+    listOpenReports(),
+    listRestorableGames(),
     recentAuditLog(),
     moderationStats(),
   ]);
+  const nowMs = Date.now();
+
+  const restorableItems: RestorableItem[] = restorable.map((g) => ({
+    id: g.id,
+    title: g.title,
+    systemId: g.systemId,
+    takedownReason: g.takedownReason,
+    takedownAt: g.takedownAt?.getTime() ?? null,
+  }));
+
+  const reportItems: ReportItem[] = reports.map((r) => ({
+    id: r.report.id,
+    type: r.report.type,
+    body: r.report.body,
+    reporterEmail: r.report.reporterEmail,
+    createdAt: r.report.createdAt.getTime(),
+    dmcaDeadlineAt: r.report.dmcaDeadlineAt?.getTime() ?? null,
+    game:
+      r.gameSlug && r.gameTitle && r.gameSystemId && r.gameStatus
+        ? {
+            id: r.report.gameId,
+            title: r.gameTitle,
+            slug: r.gameSlug,
+            systemId: r.gameSystemId,
+            status: r.gameStatus,
+          }
+        : null,
+  }));
 
   const items: QueueItem[] = pending.map((r) => ({
     id: r.game.id,
@@ -55,6 +94,23 @@ export default async function AdminPage() {
       </div>
 
       <ModerationQueue items={items} canBan={user.role === "admin"} />
+
+      <section className="mt-12 border-t pt-8">
+        <h2 className="hud-label mb-4 text-text">
+          /// REPORTS — {reportItems.length} OPEN
+        </h2>
+        <ReportsQueue items={reportItems} nowMs={nowMs} />
+      </section>
+
+      {restorableItems.length > 0 && (
+        <section className="mt-12 border-t pt-8">
+          <h2 className="hud-label mb-4 text-text">
+            /// RESTORABLE — {restorableItems.length} REVERSIBLE TAKEDOWN
+            {restorableItems.length === 1 ? "" : "S"}
+          </h2>
+          <RestorableGames items={restorableItems} />
+        </section>
+      )}
 
       <section className="mt-12 border-t pt-8">
         <h2 className="hud-label mb-4 text-text">/// AUDIT TRAIL — LAST {audit.length}</h2>
