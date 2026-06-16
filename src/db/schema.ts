@@ -144,8 +144,16 @@ export const reports = sqliteTable(
       enum: ["dmca", "broken", "wrong_info", "other"],
     }).notNull(),
     body: text("body").notNull(),
-    /** formal DMCA notices auto-unpublish after 72h if not actioned sooner */
+    /**
+     * formal DMCA notices auto-unpublish after 72h if not actioned sooner.
+     * This is null until the notice is email-verified — an unverified anonymous
+     * notice must NOT arm the auto-takedown clock (anti-griefing, see lib/reports).
+     */
     dmcaDeadlineAt: integer("dmca_deadline_at", { mode: "timestamp" }),
+    /** SHA-256 of the one-time email-verification token (dmca only) */
+    verifyTokenHash: text("verify_token_hash"),
+    /** set when the reporter clicks the verification link; arms the 72h clock */
+    verifiedAt: integer("verified_at", { mode: "timestamp" }),
     status: text("status", { enum: ["open", "actioned", "dismissed"] })
       .notNull()
       .default("open"),

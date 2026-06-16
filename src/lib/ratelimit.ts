@@ -29,12 +29,39 @@ export function rateLimit(
   return { ok: true, remaining: limit - recent.length, retryAfterMs: 0 };
 }
 
-/** best-effort client IP from proxy headers (for anonymous-endpoint limiting) */
+/**
+ * Client IP for anonymous-endpoint limiting.
+ *
+ * `X-Forwarded-For` is attacker-controlled EXCEPT for the entries appended by
+ * your own reverse proxy / load balancer. Trusting the LEFTMOST entry (as the
+ * old code did) lets anyone rotate the value per request and bypass every
+ * anonymous rate limit. We instead step in from the RIGHT by the number of
+ * trusted proxy hops in front of the app, landing on the IP the outermost
+ * trusted proxy actually observed.
+ *
+ * Set `TRUSTED_PROXY_HOPS` to match your deployment (Vercel/single nginx = 1,
+ * which is the default; LB + ingress = 2; etc.). With no proxy and no header we
+ * fall back to a constant — coarse, but never spoofable.
+ */
+const TRUSTED_PROXY_HOPS = Math.max(
+  0,
+  Number(process.env.TRUSTED_PROXY_HOPS ?? 1) || 0,
+);
+
 export function clientIp(req: Request): string {
-  const h = req.headers;
-  return (
-    h.get("x-forwarded-for")?.split(",")[0]?.trim() ||
-    h.get("x-real-ip") ||
-    "local"
-  );
+  const xff = req.headers.get("x-forwarded-for");
+  if (xff && TRUSTED_PROXY_HOPS > 0) {
+    const parts = xff
+      .split(",")
+      .map((s) => s.trim())
+      .filter(Boolean);
+    if (parts.length > 0) {
+      // the rightmost TRUSTED_PROXY_HOPS were appended by our infra; the entry
+      // just before them is the furthest-left value we can still trust.
+      const idx = Math.max(0, parts.length - TRUSTED_PROXY_HOPS);
+      return parts[idx] ?? parts[parts.length - 1]!;
+    }
+  }
+  // x-real-ip is only meaningful if set by your own proxy
+  return req.headers.get("x-real-ip")?.trim() || "local";
 }

@@ -101,11 +101,14 @@ CREATE TABLE IF NOT EXISTS reports (
   type TEXT NOT NULL,
   body TEXT NOT NULL,
   dmca_deadline_at INTEGER,
+  verify_token_hash TEXT,
+  verified_at INTEGER,
   status TEXT NOT NULL DEFAULT 'open',
   created_at INTEGER NOT NULL,
   resolved_at INTEGER
 );
 CREATE INDEX IF NOT EXISTS reports_status_idx ON reports(status);
+CREATE INDEX IF NOT EXISTS reports_type_status_deadline_idx ON reports(type, status, dmca_deadline_at);
 CREATE TABLE IF NOT EXISTS audit_log (
   id TEXT PRIMARY KEY,
   actor_id TEXT REFERENCES users(id),
@@ -115,6 +118,41 @@ CREATE TABLE IF NOT EXISTS audit_log (
   created_at INTEGER NOT NULL
 );
 `);
+
+/**
+ * Lightweight column migrations for DBs created before a column existed.
+ * `CREATE TABLE IF NOT EXISTS` above only protects FIRST boot; existing files
+ * need additive `ALTER TABLE ... ADD COLUMN`. SQLite has no "ADD COLUMN IF NOT
+ * EXISTS", so we diff against `PRAGMA table_info` and add what's missing. Purely
+ * additive + idempotent; real schema changes still go through `npm run db:push`.
+ */
+function ensureColumns(
+  table: string,
+  columns: { name: string; ddl: string }[],
+): void {
+  const existing = new Set(
+    (sqlite.prepare(`PRAGMA table_info(${table})`).all() as { name: string }[]).map(
+      (c) => c.name,
+    ),
+  );
+  for (const col of columns) {
+    if (existing.has(col.name)) continue;
+    try {
+      sqlite.exec(`ALTER TABLE ${table} ADD COLUMN ${col.ddl}`);
+    } catch (e) {
+      // race-safe: parallel module inits (e.g. Next build collecting page data
+      // across route bundles) can attempt the same ALTER concurrently; ignore a
+      // duplicate-column collision, rethrow anything else.
+      if (!String((e as Error)?.message).includes("duplicate column name"))
+        throw e;
+    }
+  }
+}
+
+ensureColumns("reports", [
+  { name: "verify_token_hash", ddl: "verify_token_hash TEXT" },
+  { name: "verified_at", ddl: "verified_at INTEGER" },
+]);
 
 export const db = drizzle(sqlite, { schema });
 export { schema };

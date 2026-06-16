@@ -5,8 +5,11 @@ import { GameCard } from "@/components/games/GameCard";
 import { PlayerFrame } from "@/components/player/PlayerFrame";
 import { getSystem } from "@/config/systems.config";
 import { getGameBySlug, getRelatedGames } from "@/lib/games";
+import { sweepExpiredDmca } from "@/lib/reports";
 
-export const revalidate = 300;
+// dynamic, not ISR: a game past its 72h DMCA deadline must flip to the tombstone
+// on this render (not serve a cached player that then 404s on the ROM fetch).
+export const dynamic = "force-dynamic";
 
 interface Params {
   system: string;
@@ -26,6 +29,8 @@ export async function generateMetadata({
 
 export default async function PlayPage({ params }: { params: Promise<Params> }) {
   const { system: systemId, slug } = await params;
+  // flip any game past its verified 72h DMCA deadline before we read it
+  await sweepExpiredDmca();
   const system = getSystem(systemId);
   const game = await getGameBySlug(systemId, slug);
   if (!system || !game) notFound();
