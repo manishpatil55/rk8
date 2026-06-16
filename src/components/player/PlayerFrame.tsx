@@ -344,7 +344,7 @@ export function PlayerFrame(props: PlayerFrameProps) {
                   aria-label={`slot ${i}${slots.has(i) ? " (occupied)" : " (empty)"}`}
                   aria-pressed={activeSlot === i}
                   onClick={() => setActiveSlot(i)}
-                  className={`h-6 w-4 border transition-colors ${
+                  className={`h-10 w-6 border transition-colors ${
                     slots.has(i)
                       ? "border-cp-yellow bg-cp-yellow"
                       : "border-line bg-surface"
