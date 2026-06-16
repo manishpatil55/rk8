@@ -6,6 +6,7 @@ import { PlayerFrame } from "@/components/player/PlayerFrame";
 import { getSystem } from "@/config/systems.config";
 import { getGameBySlug, getRelatedGames } from "@/lib/games";
 import { sweepExpiredDmca } from "@/lib/reports";
+import { getCurrentUser } from "@/lib/auth/guards";
 
 // dynamic, not ISR: a game past its 72h DMCA deadline must flip to the tombstone
 // on this render (not serve a cached player that then 404s on the ROM fetch).
@@ -55,7 +56,10 @@ export default async function PlayPage({ params }: { params: Promise<Params> }) 
 
   if (game.status !== "approved") notFound();
 
-  const related = await getRelatedGames(game);
+  const [related, user] = await Promise.all([
+    getRelatedGames(game),
+    getCurrentUser(),
+  ]);
 
   return (
     <div className="mx-auto max-w-6xl px-4 py-8 md:px-6">
@@ -91,7 +95,17 @@ export default async function PlayPage({ params }: { params: Promise<Params> }) 
         }}
         romSha256={game.romSha256}
         gameId={game.id}
+        canSync={!!user}
       />
+
+      {!user && (
+        <p className="hud-label mt-3 text-dim">
+          <Link href={`/login?next=/play/${system.id}/${game.slug}`} className="text-cp-cyan hover:text-text">
+            &gt; sign in
+          </Link>{" "}
+          to sync your saves across devices
+        </p>
+      )}
 
       {/* metadata strip */}
       <section className="mt-8 grid gap-px border sm:grid-cols-2 lg:grid-cols-4">
