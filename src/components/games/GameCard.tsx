@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { getSystem } from "@/config/systems.config";
+import { CoverImage } from "@/components/games/CoverImage";
 
 interface GameCardData {
   id: string;
@@ -24,14 +25,7 @@ export function GameCard({ game }: { game: GameCardData }) {
     >
       <div className="rk8-card-img relative aspect-[4/3] overflow-hidden border-b bg-surface-2">
         {game.coverPath ? (
-          // covers are operator/community files of unknown dimensions; plain img is correct here
-          // eslint-disable-next-line @next/next/no-img-element
-          <img
-            src={`/api/cover/${game.id}`}
-            alt=""
-            loading="lazy"
-            className="h-full w-full object-cover"
-          />
+          <CoverImage src={`/api/cover/${game.id}`} />
         ) : (
           <CoverPlaceholder title={game.title} sys={system?.shortName ?? "?"} />
         )}
