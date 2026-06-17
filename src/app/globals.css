@@ -255,6 +255,19 @@
   animation: rk8-crt-on 380ms ease-out 1;
 }
 
+/* hero boot-log — one-time staggered reveal as the terminal "powers up".
+   Each line carries its own inline animation-delay; nothing loops. */
+@keyframes rk8-boot-line {
+  from { opacity: 0; transform: translateX(-8px); }
+  to   { opacity: 1; transform: translateX(0); }
+}
+.rk8-boot-line {
+  animation: rk8-boot-line 280ms ease-out backwards;
+}
+@media (prefers-reduced-motion: reduce) {
+  .rk8-boot-line { animation: none; }
+}
+
 /* reduced motion: every glitch collapses to instant state changes */
 @media (prefers-reduced-motion: reduce) {
   .rk8-hero-glitch,
@@ -355,14 +368,41 @@
   z-index: 30;
   pointer-events: none;
   background:
-    radial-gradient(ellipse at 50% 40%, transparent 58%, rgb(0 0 0 / 0.34) 100%),
+    /* signal-yellow glow blob, top-left — the Hermes "epic" ambient bloom */
+    radial-gradient(48% 42% at 8% -4%, rgb(252 238 10 / 0.06) 0%, transparent 62%),
+    /* cyan data-glow blob, bottom-right — CP2077 cool counterweight */
+    radial-gradient(46% 46% at 100% 88%, rgb(0 240 255 / 0.05) 0%, transparent 60%),
+    /* vignette — pulls focus to center */
+    radial-gradient(ellipse at 50% 38%, transparent 56%, rgb(0 0 0 / 0.38) 100%),
+    /* phosphor dot-grid lattice (Hermes signature) — 32px terminal mesh */
+    radial-gradient(rgb(252 238 10 / 0.03) 1px, transparent 1px),
+    /* fine scanlines */
     repeating-linear-gradient(
       to bottom,
       transparent 0,
       transparent 2px,
-      rgb(232 230 225 / 0.014) 2px,
-      rgb(232 230 225 / 0.014) 3px
+      rgb(232 230 225 / 0.015) 2px,
+      rgb(232 230 225 / 0.015) 3px
     );
+  background-size:
+    100% 100%,
+    100% 100%,
+    100% 100%,
+    32px 32px,
+    100% 100%;
+}
+
+/* fractal-noise grain (old-Hermes signature) — soft-light film grain over the
+   whole canvas. Static, pointer-events-none, sits just above .rk8-ambient. */
+.rk8-noise {
+  position: fixed;
+  inset: 0;
+  z-index: 31;
+  pointer-events: none;
+  opacity: 0.035;
+  mix-blend-mode: soft-light;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='200' height='200'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.82' numOctaves='2' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
+  background-size: 200px 200px;
 }
 
 /* command palette — the "agent terminal" surface */

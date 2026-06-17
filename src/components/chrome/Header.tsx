@@ -167,22 +167,39 @@ export function Header() {
         className="relative hidden border-t md:block"
       >
         <div className="flex items-stretch overflow-x-auto px-2 md:px-4">
+          <span
+            className="hud-label flex select-none items-center whitespace-nowrap pr-3 text-dim"
+            aria-hidden
+          >
+            systems //
+          </span>
           {MANUFACTURERS.map((m) => (
             <button
               key={m.id}
               type="button"
               data-mfr={m.id}
-              className={`hud-label whitespace-nowrap px-3 py-2.5 transition-colors hover:text-text ${
+              className={`hud-label group inline-flex items-center gap-1.5 whitespace-nowrap border-b-2 px-3 py-2.5 transition-colors ${
                 open === m.id
-                  ? "border-b border-cp-yellow text-cp-yellow hover:text-cp-yellow"
-                  : ""
+                  ? "border-cp-yellow text-cp-yellow"
+                  : "border-transparent hover:border-line hover:text-text"
               }`}
               aria-expanded={open === m.id}
+              aria-haspopup="true"
               onClick={() => setOpen((v) => (v === m.id ? null : m.id))}
               onMouseEnter={() => open && setOpen(m.id)}
               onKeyDown={(e) => onMfrKeyDown(e, m.id)}
             >
               {m.label}
+              <span
+                aria-hidden
+                className={`text-[8px] leading-none transition-transform duration-150 ${
+                  open === m.id
+                    ? "rotate-180 text-cp-yellow"
+                    : "text-dim group-hover:text-text"
+                }`}
+              >
+                ▾
+              </span>
             </button>
           ))}
         </div>
@@ -214,53 +231,60 @@ export function Header() {
         )}
       </nav>
 
-      {/* mobile nav */}
+      {/* mobile nav — terminal drawer */}
       {mobileOpen && (
         <nav
           id="rk8-mobile-nav"
           aria-label="primary mobile"
-          className="border-t md:hidden"
+          className="border-t bg-bg md:hidden"
         >
+          {/* primary commands */}
+          <div className="px-4 pb-1 pt-3">
+            <span className="hud-label text-dim">// main menu</span>
+          </div>
           <div className="flex flex-col">
-            {[
-              ["/library", "> library"],
-              ["/local", "> local play"],
-              ["/contribute", "> contribute"],
-              ["/bios", "> bios"],
-            ].map(([href, label]) => (
-              <Link
-                key={href}
-                href={href!}
-                className="cmd-link border-b px-4 py-3 text-dim hover:text-text"
-              >
+            {(
+              [
+                ["/library", "library"],
+                ["/local", "local play"],
+                ["/contribute", "contribute"],
+                ["/bios", "bios"],
+              ] as const
+            ).map(([href, label]) => (
+              <MobileCmd key={href} href={href}>
                 {label}
-              </Link>
+              </MobileCmd>
             ))}
-            <Link
-              href={me ? "/profile" : "/login"}
-              className="cmd-link border-b px-4 py-3 text-cp-yellow hover:text-text"
-            >
-              {me ? `> ${me.name}` : "> sign in"}
-            </Link>
+            <MobileCmd href={me ? "/profile" : "/login"} accent>
+              {me ? me.name : "sign in"}
+            </MobileCmd>
             {(me?.role === "mod" || me?.role === "admin") && (
-              <Link
-                href="/admin"
-                className="cmd-link border-b px-4 py-3 text-cp-cyan hover:text-text"
-              >
-                &gt; admin
-              </Link>
+              <MobileCmd href="/admin" cyan>
+                admin
+              </MobileCmd>
             )}
+          </div>
+
+          {/* systems, grouped by manufacturer */}
+          <div className="px-4 pb-1 pt-4">
+            <span className="hud-label text-dim">// systems</span>
+          </div>
+          <div className="flex flex-col">
             {MANUFACTURERS.map((m) => (
-              <details key={m.id} className="border-b">
-                <summary className="hud-label cursor-pointer list-none px-4 py-3">
-                  {m.label}
+              <details key={m.id} className="group border-b">
+                <summary className="hud-label flex cursor-pointer list-none items-center justify-between px-4 py-3.5 transition-colors hover:text-text">
+                  <span>{m.label}</span>
+                  <span aria-hidden className="font-mono text-xs text-cp-yellow">
+                    <span className="group-open:hidden">[+]</span>
+                    <span className="hidden group-open:inline">[−]</span>
+                  </span>
                 </summary>
-                <div className="flex flex-col pb-2">
+                <div className="ml-4 flex flex-col border-l border-line pb-2">
                   {systemsFor(m.id).map((s) => (
                     <Link
                       key={s.id}
                       href={`/library?system=${s.id}`}
-                      className="px-6 py-2 font-mono text-sm text-dim hover:text-text"
+                      className="px-4 py-2.5 font-mono text-sm text-dim transition-colors hover:bg-surface hover:text-text"
                     >
                       {s.name}
                     </Link>
@@ -272,6 +296,36 @@ export function Header() {
         </nav>
       )}
     </header>
+  );
+}
+
+/** Mobile drawer command row: terminal cursor on hover, left-edge accent,
+ *  ~52px tall for comfortable touch. */
+function MobileCmd({
+  href,
+  children,
+  accent,
+  cyan,
+}: {
+  href: string;
+  children: React.ReactNode;
+  accent?: boolean;
+  cyan?: boolean;
+}) {
+  const tone = accent ? "text-cp-yellow" : cyan ? "text-cp-cyan" : "text-dim";
+  return (
+    <Link
+      href={href}
+      className={`group flex items-center gap-2 border-b border-l-2 border-l-transparent px-4 py-3.5 font-mono text-sm transition-colors hover:border-l-cp-yellow hover:bg-surface hover:text-text ${tone}`}
+    >
+      <span
+        aria-hidden
+        className="text-cp-yellow opacity-0 transition-opacity group-hover:opacity-100"
+      >
+        ▸
+      </span>
+      {children}
+    </Link>
   );
 }
 

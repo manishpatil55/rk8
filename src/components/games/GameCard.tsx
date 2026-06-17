@@ -35,6 +35,16 @@ export function GameCard({ game }: { game: GameCardData }) {
         ) : (
           <CoverPlaceholder title={game.title} sys={system?.shortName ?? "?"} />
         )}
+        {/* system tag — always-on HUD readout */}
+        <span className="hud-label absolute left-2 top-2 bg-bg/75 px-1.5 py-0.5 text-cp-cyan backdrop-blur-sm">
+          {system?.shortName ?? game.systemId}
+        </span>
+        {/* play affordance — powers on with the card */}
+        <div className="absolute inset-0 flex items-center justify-center bg-bg/55 opacity-0 transition-opacity duration-150 group-hover:opacity-100 group-focus-visible:opacity-100">
+          <span className="inline-flex items-center gap-2 border border-cp-yellow px-3 py-1.5 font-mono text-xs uppercase tracking-widest text-cp-yellow">
+            <span aria-hidden>▶</span> play
+          </span>
+        </div>
       </div>
       <div className="flex flex-col gap-1.5 p-3">
         <span className="truncate font-mono text-sm text-text group-hover:text-cp-yellow">

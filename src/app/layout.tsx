@@ -43,6 +43,7 @@ export default function RootLayout({
     <html lang="en" className={`${jetbrains.variable} ${plex.variable}`}>
       <body className="flex min-h-dvh flex-col">
         <div className="rk8-ambient" aria-hidden />
+        <div className="rk8-noise" aria-hidden />
         <Header />
         <main className="relative flex-1">{children}</main>
         <Footer />
