@@ -5,11 +5,13 @@ import { GameCard } from "@/components/games/GameCard";
 import { PlayerFrame } from "@/components/player/PlayerFrame";
 import { getSystem } from "@/config/systems.config";
 import { getGameBySlug, getRelatedGames } from "@/lib/games";
-import { sweepExpiredDmca } from "@/lib/reports";
+import { isDmcaSuspended } from "@/lib/reports";
 import { getCurrentUser } from "@/lib/auth/guards";
 
-// dynamic, not ISR: a game past its 72h DMCA deadline must flip to the tombstone
-// on this render (not serve a cached player that then 404s on the ROM fetch).
+// dynamic, not ISR: a game past its 72h DMCA deadline must show the tombstone
+// on this render (not a cached player that then 451s on the ROM fetch). The
+// check below is a single indexed read — the actual status flip is deferred to
+// a moderator read / scheduled sweep; the byte path refuses in lockstep.
 export const dynamic = "force-dynamic";
 
 interface Params {
@@ -30,31 +32,18 @@ export async function generateMetadata({
 
 export default async function PlayPage({ params }: { params: Promise<Params> }) {
   const { system: systemId, slug } = await params;
-  // flip any game past its verified 72h DMCA deadline before we read it
-  await sweepExpiredDmca();
   const system = getSystem(systemId);
   const game = await getGameBySlug(systemId, slug);
   if (!system || !game) notFound();
 
   /* takedown tombstone — §5 voice, permanent */
-  if (game.status === "takedown") {
-    return (
-      <div className="mx-auto flex max-w-2xl flex-col items-start gap-4 px-4 py-24 md:px-6">
-        <p className="hud-label text-cp-red">/// EJECTED</p>
-        <h1 className="font-mono text-2xl text-text">
-          THIS CARTRIDGE WAS EJECTED
-        </h1>
-        <p className="font-mono text-sm text-dim">
-          removed at rights-holder request.{" "}
-          <Link href="/dmca" className="text-cp-cyan hover:text-text">
-            takedown policy
-          </Link>
-        </p>
-      </div>
-    );
-  }
+  if (game.status === "takedown") return <Ejected />;
 
   if (game.status !== "approved") notFound();
+
+  // past a verified 72h DMCA deadline but not yet swept to takedown? block now
+  // (read-only — no write on this hot path; the byte route refuses in lockstep).
+  if (await isDmcaSuspended(game.id)) return <Ejected />;
 
   const [related, user] = await Promise.all([
     getRelatedGames(game),
@@ -142,6 +131,22 @@ export default async function PlayPage({ params }: { params: Promise<Params> }) 
           </div>
         </section>
       )}
+    </div>
+  );
+}
+
+/** takedown / DMCA-suspended tombstone — §5 voice, no player. */
+function Ejected() {
+  return (
+    <div className="mx-auto flex max-w-2xl flex-col items-start gap-4 px-4 py-24 md:px-6">
+      <p className="hud-label text-cp-red">/// EJECTED</p>
+      <h1 className="font-mono text-2xl text-text">THIS CARTRIDGE WAS EJECTED</h1>
+      <p className="font-mono text-sm text-dim">
+        removed at rights-holder request.{" "}
+        <Link href="/dmca" className="text-cp-cyan hover:text-text">
+          takedown policy
+        </Link>
+      </p>
     </div>
   );
 }
