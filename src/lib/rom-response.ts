@@ -29,10 +29,16 @@ export function streamStored(
     if (offloaded) return Response.redirect(offloaded, 302);
   }
 
+  // bytes can vanish between the caller's DB lookup and here (a concurrent
+  // takedown/reject deletes the file) — 404, don't let statSync throw a 500.
+  if (!storage.exists(key)) return new Response(null, { status: 404 });
+
   const total = storage.size(key);
   const baseHeaders: Record<string, string> = {
     "Content-Type": "application/octet-stream",
     "Content-Disposition": `inline; filename="${opts.filename}"`,
+    // never let a browser sniff a ROM into an executable type
+    "X-Content-Type-Options": "nosniff",
     "Accept-Ranges": "bytes",
     "Cache-Control": opts.cacheControl,
   };

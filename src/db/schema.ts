@@ -160,7 +160,17 @@ export const reports = sqliteTable(
     createdAt: integer("created_at", { mode: "timestamp" }).notNull(),
     resolvedAt: integer("resolved_at", { mode: "timestamp" }),
   },
-  (t) => [index("reports_status_idx").on(t.status)],
+  (t) => [
+    index("reports_status_idx").on(t.status),
+    // the DMCA auto-takedown sweep filters on (type, status, dmca_deadline_at);
+    // keep this in sync with the hand-DDL in db/index.ts so a future db:push
+    // / Postgres migration doesn't silently drop it.
+    index("reports_type_status_deadline_idx").on(
+      t.type,
+      t.status,
+      t.dmcaDeadlineAt,
+    ),
+  ],
 );
 
 export const auditLog = sqliteTable("audit_log", {

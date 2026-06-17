@@ -25,6 +25,7 @@ const ERR_STATUS: Record<string, number> = {
   empty: 400,
   too_large: 413,
   shot_too_large: 413,
+  bad_shot: 400,
   game_not_found: 404,
 };
 
@@ -95,6 +96,7 @@ export async function GET(
   return new Response(storage.stream(row.blobPath), {
     headers: {
       "Content-Type": "application/octet-stream",
+      "X-Content-Type-Options": "nosniff",
       "Cache-Control": "private, no-store",
     },
   });

@@ -35,6 +35,13 @@ export function validSlot(slot: number): boolean {
   return Number.isInteger(slot) && slot >= 0 && slot < MAX_SLOTS;
 }
 
+/** 8-byte PNG signature — the screenshot is the one upload with no extension
+ *  gate, so sniff it here before it can masquerade as image/png on the wire. */
+const PNG_SIG = Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]);
+function isPng(buf: Buffer): boolean {
+  return buf.length >= 8 && buf.subarray(0, 8).equals(PNG_SIG);
+}
+
 const blobKey = (userId: string, gameId: string, slot: number) =>
   `saves/${userId}/${gameId}/${slot}.bin`;
 const shotKey = (userId: string, gameId: string, slot: number) =>
@@ -96,6 +103,8 @@ export async function putSave(opts: {
   if (opts.state.byteLength > MAX_SAVE_BYTES) throw new SaveError("too_large");
   if (opts.screenshot && opts.screenshot.byteLength > MAX_SHOT_BYTES)
     throw new SaveError("shot_too_large");
+  if (opts.screenshot && !isPng(opts.screenshot))
+    throw new SaveError("bad_shot");
 
   const [game] = await db
     .select({ id: games.id })

@@ -24,6 +24,7 @@ export async function GET(
   return new Response(storage.stream(row.screenshotPath), {
     headers: {
       "Content-Type": "image/png",
+      "X-Content-Type-Options": "nosniff",
       "Cache-Control": "private, no-store",
     },
   });

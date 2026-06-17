@@ -23,10 +23,15 @@ export async function GET(
     return NextResponse.json({ error: "not found" }, { status: 404 });
   }
 
-  const type = game.coverPath.endsWith(".png") ? "image/png" : "image/jpeg";
+  const type = game.coverPath.endsWith(".png")
+    ? "image/png"
+    : game.coverPath.endsWith(".webp")
+      ? "image/webp"
+      : "image/jpeg";
   return new Response(storage.stream(game.coverPath), {
     headers: {
       "Content-Type": type,
+      "X-Content-Type-Options": "nosniff",
       "Cache-Control": "public, max-age=86400, immutable",
     },
   });
