@@ -1,5 +1,6 @@
 import { Suspense } from "react";
 import { LibraryBrowser } from "@/components/library/LibraryBrowser";
+import { LibrarySkeleton } from "@/components/library/LibrarySkeleton";
 import { listApprovedGames } from "@/lib/games";
 
 /** library changes only on moderation events — ISR keeps it CDN-cacheable */
@@ -28,7 +29,7 @@ export default async function LibraryPage() {
   }));
 
   return (
-    <Suspense fallback={null}>
+    <Suspense fallback={<LibrarySkeleton />}>
       <LibraryBrowser games={items} />
     </Suspense>
   );

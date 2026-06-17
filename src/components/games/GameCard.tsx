@@ -50,15 +50,25 @@ export function GameCard({ game }: { game: GameCardData }) {
         <span className="truncate font-mono text-sm text-text group-hover:text-cp-yellow">
           {game.title}
         </span>
-        <span className="hud-label flex items-center justify-between">
-          <span>
-            SYS <span aria-hidden>//</span> {system?.shortName ?? game.systemId}
-          </span>
-          {game.year && <span>{game.year}</span>}
+        {/* data line — year on the rail, play-count as the social readout.
+            system already lives in the cover tag, so it isn't repeated here. */}
+        <span className="flex items-center justify-between gap-2">
+          <span className="hud-label">{game.year ?? "—"}</span>
+          {game.playCount > 0 && (
+            <span className="hud-data" title={`${game.playCount} plays`}>
+              <span aria-hidden>▸</span> {formatPlays(game.playCount)} plays
+            </span>
+          )}
         </span>
       </div>
     </Link>
   );
+}
+
+/** compact play-count: 1240 -> "1.2k", 18400 -> "18k". */
+function formatPlays(n: number): string {
+  if (n >= 1000) return `${(n / 1000).toFixed(n >= 10_000 ? 0 : 1)}k`;
+  return String(n);
 }
 
 function CoverPlaceholder({ title, sys }: { title: string; sys: string }) {

@@ -232,6 +232,13 @@
   animation: rk8-card-glitch 120ms steps(3, end) 1;
 }
 
+/* library grid: skip layout+paint for off-screen cartridges so a large catalog
+   stays cheap to scroll. intrinsic size ~ one card so the scrollbar won't jump. */
+.rk8-lib-grid > * {
+  content-visibility: auto;
+  contain-intrinsic-size: auto 17rem;
+}
+
 /* 3 · player boot: 200ms scanline wipe, then one CRT power-on flicker */
 @keyframes rk8-scanline-wipe {
   from { transform: scaleY(0); }

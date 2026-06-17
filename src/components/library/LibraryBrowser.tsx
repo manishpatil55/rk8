@@ -69,6 +69,22 @@ function uniqueSorted<T>(values: (T | null | undefined)[]): T[] {
   );
 }
 
+/** human label for an active-filter pill (e.g. system:snes -> "SNES"). */
+function pillLabel(key: FilterKey, value: string): string {
+  switch (key) {
+    case "q":
+      return `“${value}”`;
+    case "system":
+      return getSystem(value)?.shortName ?? value;
+    case "manufacturer":
+      return MANUFACTURERS.find((m) => m.id === value)?.label ?? value;
+    case "players":
+      return `${value}P`;
+    default:
+      return value;
+  }
+}
+
 /**
  * /library — the matrix browser. Instant client-side fuzzy search + faceted
  * filters (manufacturer · system · genre · year · players · region), all
@@ -168,33 +184,40 @@ export function LibraryBrowser({ games }: { games: LibraryGame[] }) {
     });
   }, [games, filters]);
 
-  const activeCount = FILTER_KEYS.filter((k) => filters[k]).length;
+  const activeFilters = FILTER_KEYS.filter((k) => filters[k]);
 
   return (
     <div className="mx-auto max-w-6xl px-4 py-8 md:px-6">
-      <div className="mb-6 flex flex-wrap items-baseline justify-between gap-2">
-        <div>
-          <p className="hud-label mb-1">/// LIBRARY</p>
-          <h1 className="font-mono text-3xl font-bold text-text">the matrix</h1>
-        </div>
-        <p className="hud-data">
-          {results.length} / {games.length} CARTRIDGES
-        </p>
+      <div className="mb-6">
+        <p className="hud-label mb-1">/// library</p>
+        <h1 className="flex items-center gap-2 font-mono text-3xl font-bold text-text">
+          <span aria-hidden className="text-cp-yellow">
+            ▌
+          </span>
+          the matrix
+        </h1>
       </div>
 
-      {/* search */}
-      <label className="notch-tr mb-4 flex items-center gap-3 border bg-surface px-4 py-3">
-        <span className="hud-label shrink-0" aria-hidden>
-          SEARCH //
+      {/* search — a live command prompt; the match readout ticks as you type */}
+      <label className="notch-tr mb-4 flex items-center gap-3 border bg-surface px-4 py-3 transition-colors focus-within:border-cp-yellow">
+        <span className="shrink-0 font-mono text-base text-cp-yellow" aria-hidden>
+          ❯
         </span>
         <input
           type="search"
           value={filters.q}
           onChange={(e) => set("q", e.target.value)}
-          placeholder="title or alias…"
+          placeholder="search title or alias…"
           aria-label="search library"
           className="w-full bg-transparent font-mono text-sm text-text placeholder:text-dim focus:outline-none"
         />
+        <span
+          className="hud-data shrink-0 whitespace-nowrap"
+          aria-live="polite"
+          aria-label={`${results.length} of ${games.length} games match`}
+        >
+          {results.length} / {games.length}
+        </span>
       </label>
 
       {/* manufacturer chips — horizontal scroll on small screens */}
@@ -253,23 +276,44 @@ export function LibraryBrowser({ games }: { games: LibraryGame[] }) {
         />
       </div>
 
-      {activeCount > 0 && (
-        <div className="mb-6 flex items-center gap-3">
-          <span className="hud-label">
-            {activeCount} FILTER{activeCount > 1 ? "S" : ""} ACTIVE
-          </span>
-          <button type="button" className="rk8-btn-ghost" onClick={clearAll}>
-            clear
+      {activeFilters.length > 0 && (
+        <div className="mb-6 flex flex-wrap items-center gap-2">
+          <span className="hud-label mr-1">active //</span>
+          {activeFilters.map((k) => (
+            <button
+              key={k}
+              type="button"
+              onClick={() => set(k, "")}
+              aria-label={`remove ${k} filter`}
+              className="hud-label group/pill inline-flex items-center gap-1.5 border border-line px-2 py-1 text-dim transition-colors hover:border-cp-yellow hover:text-text"
+            >
+              {pillLabel(k, filters[k])}
+              <span
+                aria-hidden
+                className="text-cp-yellow opacity-60 transition-opacity group-hover/pill:opacity-100"
+              >
+                ×
+              </span>
+            </button>
+          ))}
+          <button type="button" className="rk8-btn-ghost ml-1" onClick={clearAll}>
+            clear all
           </button>
         </div>
       )}
 
       {results.length === 0 ? (
-        <p className="notch-bl border border-dashed border-line p-8 text-center font-mono text-sm text-dim">
-          no cartridges found — adjust filters
-        </p>
+        <div className="notch-bl border border-dashed border-line px-6 py-12 text-center">
+          <p className="hud-label mb-2 text-dim">no cartridges match</p>
+          <p className="mb-5 font-mono text-sm text-dim">
+            the query returned an empty set — widen it or reset.
+          </p>
+          <button type="button" className="rk8-btn-ghost" onClick={clearAll}>
+            reset filters
+          </button>
+        </div>
       ) : (
-        <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-4">
+        <div className="rk8-lib-grid grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-4">
           {results.map((g) => (
             <GameCard key={g.id} game={g} />
           ))}
