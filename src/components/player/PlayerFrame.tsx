@@ -347,6 +347,12 @@ export function PlayerFrame(props: PlayerFrameProps) {
         )}
       </div>
 
+      {/* mobile portrait nudge — the 4:3 bezel is cramped upright; CSS-only so
+          there's no hydration cost and it simply vanishes in landscape / on desktop */}
+      <p className="hidden items-center gap-2 font-mono text-xs text-cp-cyan max-md:portrait:flex">
+        ▸ rotate to landscape or tap fullscreen for a bigger screen
+      </p>
+
       {/* live status row */}
       <p className="hud-data flex flex-wrap gap-x-3 gap-y-1">
         <span>SYS // {system.shortName}</span>
@@ -379,7 +385,7 @@ export function PlayerFrame(props: PlayerFrameProps) {
                   aria-label={`slot ${i}${slots.has(i) ? " (occupied)" : " (empty)"}`}
                   aria-pressed={activeSlot === i}
                   onClick={() => setActiveSlot(i)}
-                  className={`h-10 w-6 border transition-colors ${
+                  className={`h-11 w-7 touch-manipulation border transition-colors ${
                     slots.has(i)
                       ? "border-cp-yellow bg-cp-yellow"
                       : "border-line bg-surface"
