@@ -3,6 +3,7 @@
 import { useCallback, useState } from "react";
 import { PlayerFrame } from "@/components/player/PlayerFrame";
 import { getSystem } from "@/config/systems.config";
+import { useConfirm } from "./useConfirm";
 
 export interface QueueItem {
   id: string;
@@ -42,6 +43,7 @@ export function ModerationQueue({
   const [busy, setBusy] = useState<string | null>(null);
   const [preview, setPreview] = useState<string | null>(null);
   const [toast, setToast] = useState<Toast>(null);
+  const { confirm, dialog } = useConfirm();
 
   const say = useCallback((text: string, tone: "info" | "error" = "info") => {
     setToast({ text, tone });
@@ -55,7 +57,15 @@ export function ModerationQueue({
         say(`${action} needs a reason`, "error");
         return;
       }
-      if (action === "takedown" && !confirm(`Takedown "${item.title}"? This is permanent and deletes the file.`))
+      if (
+        action === "takedown" &&
+        (await confirm({
+          title: "confirm takedown",
+          body: `takedown "${item.title}"? this is permanent and deletes the file.`,
+          confirmLabel: "takedown",
+          danger: true,
+        })) === null
+      )
         return;
 
       setBusy(item.id);
@@ -76,15 +86,20 @@ export function ModerationQueue({
         setBusy(null);
       }
     },
-    [preview, reasons, say],
+    [confirm, preview, reasons, say],
   );
 
   const ban = useCallback(
     async (item: QueueItem) => {
       if (!item.submitter) return;
-      const reason = prompt(`Ban ${item.submitter.label}? Reason:`);
-      if (reason === null) return;
-      if (!reason.trim()) return say("ban needs a reason", "error");
+      const reason = await confirm({
+        title: "ban uploader",
+        body: `ban ${item.submitter.label}? this revokes their sessions immediately.`,
+        input: { placeholder: "reason (required)", required: true },
+        confirmLabel: "ban",
+        danger: true,
+      });
+      if (reason === null) return; // cancelled; the modal enforces a non-empty reason
 
       setBusy(item.id);
       try {
@@ -102,7 +117,7 @@ export function ModerationQueue({
         setBusy(null);
       }
     },
-    [say],
+    [confirm, say],
   );
 
   if (queue.length === 0) {
@@ -243,6 +258,7 @@ export function ModerationQueue({
           {toast.text}
         </p>
       )}
+      {dialog}
     </div>
   );
 }

@@ -2,6 +2,7 @@
 
 import { useCallback, useState } from "react";
 import { getSystem } from "@/config/systems.config";
+import { useConfirm } from "./useConfirm";
 
 export interface RestorableItem {
   id: string;
@@ -20,6 +21,7 @@ export function RestorableGames({ items }: { items: RestorableItem[] }) {
   const [queue, setQueue] = useState(items);
   const [busy, setBusy] = useState<string | null>(null);
   const [toast, setToast] = useState<{ text: string; tone: "info" | "error" } | null>(null);
+  const { confirm, dialog } = useConfirm();
 
   const say = useCallback((text: string, tone: "info" | "error" = "info") => {
     setToast({ text, tone });
@@ -28,7 +30,13 @@ export function RestorableGames({ items }: { items: RestorableItem[] }) {
 
   const restore = useCallback(
     async (item: RestorableItem) => {
-      if (!confirm(`Restore "${item.title}"? It becomes publicly playable again.`))
+      if (
+        (await confirm({
+          title: "confirm restore",
+          body: `restore "${item.title}"? it becomes publicly playable again.`,
+          confirmLabel: "restore",
+        })) === null
+      )
         return;
       setBusy(item.id);
       try {
@@ -47,7 +55,7 @@ export function RestorableGames({ items }: { items: RestorableItem[] }) {
         setBusy(null);
       }
     },
-    [say],
+    [confirm, say],
   );
 
   if (queue.length === 0) {
@@ -108,6 +116,7 @@ export function RestorableGames({ items }: { items: RestorableItem[] }) {
           {toast.text}
         </p>
       )}
+      {dialog}
     </div>
   );
 }

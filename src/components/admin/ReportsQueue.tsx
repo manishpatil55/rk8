@@ -3,6 +3,7 @@
 import { useCallback, useState } from "react";
 import Link from "next/link";
 import { getSystem } from "@/config/systems.config";
+import { useConfirm } from "./useConfirm";
 
 export interface ReportItem {
   id: string;
@@ -54,6 +55,7 @@ export function ReportsQueue({
   const [queue, setQueue] = useState(items);
   const [busy, setBusy] = useState<string | null>(null);
   const [toast, setToast] = useState<Toast>(null);
+  const { confirm, dialog } = useConfirm();
 
   const say = useCallback((text: string, tone: "info" | "error" = "info") => {
     setToast({ text, tone });
@@ -64,9 +66,12 @@ export function ReportsQueue({
     async (item: ReportItem, action: "action" | "dismiss") => {
       if (
         action === "action" &&
-        !confirm(
-          `Take down "${item.game?.title ?? "this game"}"? This deletes the file and is permanent.`,
-        )
+        (await confirm({
+          title: "confirm takedown",
+          body: `take down "${item.game?.title ?? "this game"}"? this deletes the file and is permanent.`,
+          confirmLabel: "takedown game",
+          danger: true,
+        })) === null
       )
         return;
 
@@ -87,7 +92,7 @@ export function ReportsQueue({
         setBusy(null);
       }
     },
-    [say],
+    [confirm, say],
   );
 
   if (queue.length === 0) {
@@ -202,6 +207,7 @@ export function ReportsQueue({
           {toast.text}
         </p>
       )}
+      {dialog}
     </div>
   );
 }
