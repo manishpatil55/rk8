@@ -5,10 +5,12 @@ import { db, schema } from "@/db";
 import {
   ReportError,
   ReportSchema,
+  actionReport,
   createReport,
   dismissReport,
   isDmcaSuspended,
   openReportCount,
+  sweepExpiredDmca,
   verifyReport,
 } from "@/lib/reports";
 
@@ -210,6 +212,60 @@ describe("dismissReport + openReportCount", () => {
 
     // dismissing a closed ticket is rejected
     await expect(dismissReport({ actorId: "mod-1", reportId: id })).rejects.toMatchObject({
+      code: "not_open",
+    });
+  });
+});
+
+/** current status of a seeded game */
+async function gameStatus(gameId: string): Promise<string | undefined> {
+  const [g] = await db.select().from(schema.games).where(eq(schema.games.id, gameId));
+  return g?.status;
+}
+
+describe("sweepExpiredDmca (the 72h teeth)", () => {
+  it("takes down a game past a verified deadline and resolves its report", async () => {
+    const gameId = await seedGame();
+    await seedDmcaReport(gameId, { token: "tok", deadlineAt: new Date(Date.now() - 1000) });
+
+    expect(await sweepExpiredDmca()).toBe(1);
+    expect(await gameStatus(gameId)).toBe("takedown");
+    expect(await openReportCount()).toBe(0); // the report is resolved to actioned
+    expect(await isDmcaSuspended(gameId)).toBe(false); // no longer open
+  });
+
+  it("leaves an unarmed or not-yet-due notice alone", async () => {
+    const unarmed = await seedGame();
+    await seedDmcaReport(unarmed, { token: "a", deadlineAt: null });
+    const future = await seedGame();
+    await seedDmcaReport(future, { token: "b", deadlineAt: new Date(Date.now() + 3600_000) });
+
+    expect(await sweepExpiredDmca()).toBe(0);
+    expect(await gameStatus(unarmed)).toBe("approved");
+    expect(await gameStatus(future)).toBe("approved");
+  });
+});
+
+describe("actionReport (manual moderator takedown)", () => {
+  it("takes the game down and resolves every open ticket on it", async () => {
+    await db.insert(schema.users).values({
+      id: "mod-2",
+      email: "mod2@rk8.local",
+      createdAt: new Date(),
+    });
+    const gameId = await seedGame();
+    const dmcaId = await seedDmcaReport(gameId, { token: "tok" });
+    // a second, unrelated open ticket on the same game
+    await createReport({ gameId, type: "broken", body: "also crashes" }, null);
+    expect(await openReportCount()).toBe(2);
+
+    await actionReport({ actorId: "mod-2", reportId: dmcaId });
+
+    expect(await gameStatus(gameId)).toBe("takedown");
+    expect(await openReportCount()).toBe(0); // BOTH tickets resolved
+
+    // a resolved ticket can't be actioned again
+    await expect(actionReport({ actorId: "mod-2", reportId: dmcaId })).rejects.toMatchObject({
       code: "not_open",
     });
   });
