@@ -253,6 +253,18 @@ export class EjsEngine implements EmulationEngine {
     }
   }
 
+  setFastForward(on: boolean): void {
+    const emu = this.emu;
+    if (!emu?.gameManager) return; // not running yet
+    try {
+      // keep EJS's own flag in sync — its settings UI reads isFastForward
+      emu.isFastForward = on;
+      emu.gameManager.toggleFastForward(on ? 1 : 0);
+    } catch {
+      /* best-effort */
+    }
+  }
+
   async dispose(): Promise<void> {
     this.teardownIframe();
     for (const u of this.objectUrls) URL.revokeObjectURL(u);

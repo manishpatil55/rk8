@@ -123,6 +123,10 @@ export class JsDosEngine implements EmulationEngine {
     }
   }
 
+  setFastForward(): void {
+    throw new Error("js-dos has no fast-forward");
+  }
+
   async dispose(): Promise<void> {
     try {
       await this.props?.stop?.();

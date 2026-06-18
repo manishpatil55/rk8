@@ -55,5 +55,7 @@ export interface EmulationEngine {
   screenshot(): Promise<Blob | null>;
   /** 0..1 */
   setVolume(volume: number): void;
+  /** toggle fast-forward; throws if capabilities.fastForward is false */
+  setFastForward(on: boolean): void;
   dispose(): Promise<void>;
 }

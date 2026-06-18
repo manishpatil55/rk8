@@ -54,6 +54,12 @@ export function PlayerFrame(props: PlayerFrameProps) {
   const [muted, setMuted] = useState(false);
   const [toast, setToast] = useState<Toast>(null);
   const [biosMissing, setBiosMissing] = useState<string[] | null>(null);
+  const [fastForwarding, setFastForwarding] = useState(false);
+  const [legendOpen, setLegendOpen] = useState(false);
+
+  // fast-forward is the only non-universal capability; EJS is the only engine
+  // that implements it (ruffle/jsdos throw, so the control is gated off).
+  const supportsFastForward = system?.engine === "ejs";
 
   // sync only makes sense for a signed-in user playing a real library game
   const canSync = !!props.canSync && !!props.gameId;
@@ -67,6 +73,7 @@ export function PlayerFrame(props: PlayerFrameProps) {
   useEffect(() => {
     if (!system || !mountRef.current) return;
     let cancelled = false;
+    setFastForwarding(false); // a fresh boot is always at normal speed
     const engine = createEngine(system.engine);
     engineRef.current = engine;
 
@@ -257,6 +264,34 @@ export function PlayerFrame(props: PlayerFrameProps) {
     });
   }, []);
 
+  const toggleFastForward = useCallback(() => {
+    setFastForwarding((on) => {
+      const next = !on;
+      try {
+        engineRef.current?.setFastForward(next);
+      } catch {
+        /* gated by supportsFastForward, so this shouldn't fire */
+      }
+      return next;
+    });
+  }, []);
+
+  /* `?` toggles the control legend (ignored while typing, e.g. the admin
+     preview's reason field). The button below works regardless of focus —
+     the emulator iframe swallows keydowns once the game has focus. */
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      const t = e.target as HTMLElement | null;
+      if (t && (t.tagName === "INPUT" || t.tagName === "TEXTAREA")) return;
+      if (e.key === "?") {
+        e.preventDefault();
+        setLegendOpen((o) => !o);
+      }
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, []);
+
   if (!system) {
     return (
       <p className="border border-cp-red p-6 font-mono text-sm text-cp-red">
@@ -377,6 +412,18 @@ export function PlayerFrame(props: PlayerFrameProps) {
         )}
 
         <div className="ml-auto flex gap-2">
+          {supportsFastForward && (
+            <button
+              type="button"
+              className={`rk8-btn-ghost ${
+                fastForwarding ? "!border-cp-yellow !text-cp-yellow" : ""
+              }`}
+              onClick={toggleFastForward}
+              aria-pressed={fastForwarding}
+            >
+              {fastForwarding ? "fast ▶▶" : "fast"}
+            </button>
+          )}
           <button type="button" className="rk8-btn-ghost" onClick={doScreenshot}>
             capture
           </button>
@@ -386,8 +433,23 @@ export function PlayerFrame(props: PlayerFrameProps) {
           <button type="button" className="rk8-btn-ghost" onClick={doFullscreen}>
             fullscreen
           </button>
+          <button
+            type="button"
+            className="rk8-btn-ghost"
+            onClick={() => setLegendOpen(true)}
+            aria-haspopup="dialog"
+            aria-label="control legend"
+          >
+            ?
+          </button>
         </div>
       </div>
+
+      <KeyLegend
+        open={legendOpen}
+        onClose={() => setLegendOpen(false)}
+        supportsFastForward={supportsFastForward}
+      />
     </div>
   );
 }
@@ -420,6 +482,75 @@ function BiosGate({ files, note }: { files: string[]; note?: string }) {
       <Link href="/bios" className="rk8-btn-primary">
         open bios vault
       </Link>
+    </div>
+  );
+}
+
+/** the `?` control legend — native <dialog> for a free focus trap + Escape. */
+function KeyLegend({
+  open,
+  onClose,
+  supportsFastForward,
+}: {
+  open: boolean;
+  onClose: () => void;
+  supportsFastForward: boolean;
+}) {
+  const ref = useRef<HTMLDialogElement>(null);
+  useEffect(() => {
+    const d = ref.current;
+    if (!d) return;
+    if (open && !d.open) d.showModal();
+    else if (!open && d.open) d.close();
+  }, [open]);
+
+  return (
+    <dialog
+      ref={ref}
+      aria-labelledby="rk8-legend-title"
+      onCancel={(e) => {
+        e.preventDefault();
+        onClose();
+      }}
+      onClick={(e) => {
+        if (e.target === ref.current) onClose();
+      }}
+      className="notch-tr m-auto w-[calc(100vw-2rem)] max-w-md border bg-surface p-5 text-text backdrop:bg-black/70 backdrop:backdrop-blur-sm"
+    >
+      <div className="flex flex-col gap-4">
+        <div className="flex items-baseline justify-between gap-3">
+          <p id="rk8-legend-title" className="hud-label text-cp-yellow">
+            /// controls
+          </p>
+          <button type="button" className="rk8-btn-ghost" onClick={onClose}>
+            close
+          </button>
+        </div>
+        <dl className="flex flex-col gap-2 font-mono text-sm">
+          <LegendRow k="slots 0–9" v="pick a cartridge slot, then save / load" />
+          <LegendRow k="save / load" v="write or restore the active slot" />
+          {supportsFastForward && (
+            <LegendRow k="fast ▶▶" v="run the machine above real-time" />
+          )}
+          <LegendRow k="capture" v="download a png of the frame" />
+          <LegendRow k="mute" v="toggle audio" />
+          <LegendRow k="fullscreen" v="expand the bezel" />
+          <LegendRow k="?" v="toggle this panel · esc closes" />
+        </dl>
+        <p className="font-mono text-xs text-dim">
+          in-game buttons + gamepad are mapped inside the emulator — open its gear
+          menu to remap. controllers are auto-detected.
+        </p>
+      </div>
+    </dialog>
+  );
+}
+
+function LegendRow({ k, v }: { k: string; v: string }) {
+  return (
+    <div className="flex justify-between gap-4">
+      <dt className="shrink-0 text-cp-cyan">{k}</dt>
+      <dd className="text-right text-dim">{v}</dd>
     </div>
   );
 }

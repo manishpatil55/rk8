@@ -102,6 +102,10 @@ export class RuffleEngine implements EmulationEngine {
     }
   }
 
+  setFastForward(): void {
+    throw new Error("flash has no fast-forward");
+  }
+
   async dispose(): Promise<void> {
     try {
       this.player?.remove();
