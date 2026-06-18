@@ -20,6 +20,9 @@ export type EngineStatusPhase =
 export interface EngineStatus {
   phase: EngineStatusPhase;
   message?: string;
+  /** the core actually in use once running — reflects a fallback swap, so the
+   *  HUD reports the real core rather than the configured primary. */
+  core?: string;
 }
 
 export interface EngineLoadOptions {

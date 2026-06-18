@@ -316,7 +316,7 @@ export function PlayerFrame(props: PlayerFrameProps) {
       <p className="hud-data flex flex-wrap gap-x-3 gap-y-1">
         <span>SYS // {system.shortName}</span>
         <span className="text-dim">·</span>
-        <span>CORE // {(system.core ?? system.engine).toUpperCase()}</span>
+        <span>CORE // {(status.core ?? system.core ?? system.engine).toUpperCase()}</span>
         <span className="text-dim">·</span>
         <span>
           STATE //{" "}
