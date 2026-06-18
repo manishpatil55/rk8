@@ -121,6 +121,9 @@ export function Header() {
           <CmdLink href="/library" active={pathname.startsWith("/library")}>
             library
           </CmdLink>
+          <CmdLink href="/charts" active={pathname.startsWith("/charts")}>
+            charts
+          </CmdLink>
           <CmdLink href="/local" active={pathname.startsWith("/local")}>
             local play
           </CmdLink>
@@ -246,6 +249,7 @@ export function Header() {
             {(
               [
                 ["/library", "library"],
+                ["/charts", "charts"],
                 ["/local", "local play"],
                 ["/contribute", "contribute"],
                 ["/bios", "bios"],

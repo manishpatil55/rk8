@@ -18,6 +18,7 @@ interface Cmd {
 const ACTIONS: Cmd[] = [
   { label: "home", hint: "DASHBOARD", href: "/" },
   { label: "library", hint: "BROWSE THE MATRIX", href: "/library" },
+  { label: "charts", hint: "MOST PLAYED", href: "/charts" },
   { label: "local play", hint: "ZERO-UPLOAD", href: "/local" },
   { label: "contribute", hint: "SUBMIT A GAME", href: "/contribute" },
   { label: "bios vault", hint: "BYO BIOS", href: "/bios" },

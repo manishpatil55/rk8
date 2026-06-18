@@ -120,7 +120,7 @@ export default async function HomePage() {
         games={recent}
         empty="library is warming up — run `npm run seed` to mount the starter cartridges"
       />
-      <Rail label="MOST PLAYED" games={popular} empty="no play data yet" />
+      <Rail label="MOST PLAYED" games={popular} empty="no play data yet" href="/charts" />
 
       {/* per-manufacturer rails — only manufacturers with mounted cartridges show */}
       {manufacturerRails.map((rail) => (

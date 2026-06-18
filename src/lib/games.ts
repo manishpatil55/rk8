@@ -36,7 +36,9 @@ export async function getMostPlayed(limit = 8): Promise<Game[]> {
     .select()
     .from(games)
     .where(approved)
-    .orderBy(desc(games.playCount))
+    // playCount is the rank; publishedAt breaks ties so the order is stable
+    // (and newer arrivals edge out equally-unplayed older ones)
+    .orderBy(desc(games.playCount), desc(games.publishedAt))
     .limit(limit);
 }
 
