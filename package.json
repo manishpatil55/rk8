@@ -12,6 +12,8 @@
     "db:studio": "drizzle-kit studio",
     "setup:engines": "node scripts/fetch-engines.mjs",
     "seed": "tsx scripts/seed.ts",
+    "test": "vitest run",
+    "test:watch": "vitest",
     "postinstall": "node scripts/fetch-engines.mjs --if-missing"
   },
   "dependencies": {
@@ -34,6 +36,7 @@
     "drizzle-kit": "^0.31.0",
     "tailwindcss": "^4.1.0",
     "tsx": "^4.20.0",
-    "typescript": "^5.9.0"
+    "typescript": "^5.9.0",
+    "vitest": "^4.1.9"
   }
 }
